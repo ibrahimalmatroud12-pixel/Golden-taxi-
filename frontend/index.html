@@ -1,274 +1,54 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Golden Taxi — Chiron</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f5f6f8; margin: 0; color: #1d2430; }
-    header { padding: 16px 24px; background: #1e2530; color: #d8b36a; display: flex; justify-content: space-between; align-items: center; }
-    main { max-width: 1120px; margin: 22px auto; padding: 0 14px; }
-    .card { background: #fff; padding: 18px; border-radius: 10px; margin: 12px 0; box-shadow: 0 2px 10px #0001; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 7px; }
-    input, select, button { padding: 10px; border: 1px solid #cbd3dd; border-radius: 6px; margin: 3px; width: 100%; box-sizing: border-box; }
-    button { background: #d8b36a; color: #1e2530; cursor: pointer; border: 0; font-weight: bold; }
-    .hidden { display: none; }
-    .small { font-size: 13px; color: #667; }
-    .ok { color: green; }
-    .bad { color: #b00; }
-    pre { white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 6px; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golden Taxi</title>
+<style>
+body{font-family:Arial;background:#f5f6f8;margin:0;color:#1d2430}
+header{padding:16px;background:#1e2530;color:#d8b36a}
+main{max-width:700px;margin:20px auto;padding:0 12px}
+.card{background:#fff;padding:16px;border-radius:10px;margin:10px 0}
+input,button{width:100%;padding:12px;margin:6px 0;border:1px solid #ccc;border-radius:6px;box-sizing:border-box}
+button{background:#d8b36a;border:0;font-weight:bold}
+#msg{color:#b00;font-size:14px}
+</style>
 </head>
 <body>
-<header>
-  <b>◇ Golden Taxi — Chiron</b>
-  <button onclick="logout()">خروج</button>
-</header>
-
+<header><b>Golden Taxi — Chiron</b></header>
 <main>
-  <section id="login" class="card">
-    <h2>دخول الإدارة</h2>
-    <input id="pw" type="password" placeholder="كلمة المرور">
-    <button onclick="login()">دخول</button>
-    <p id="loginMsg"></p>
-  </section>
-
-  <section id="app" class="hidden">
-    <div class="card">
-      <h2>1. إضافة شركة وبيانات Chiron</h2>
-      <div class="grid">
-        <input id="name" placeholder="اسم الشركة القانوني">
-        <input id="kbo" placeholder="KBO / ondernemingsnummer">
-        <input id="email" placeholder="البريد">
-        <input id="phone" placeholder="الهاتف">
-        <input id="testClientId" placeholder="TEST Client ID">
-        <input id="testSecret" type="password" placeholder="TEST Client Secret">
-        <input id="productionClientId" placeholder="Production Client ID لاحقاً">
-        <input id="productionSecret" type="password" placeholder="Production Client Secret لاحقاً">
-      </div>
-      <button onclick="addCompany()">حفظ الشركة</button>
-      <p class="small">لا يظهر الـ Secret بعد الحفظ ولا يُرسل للمتصفح.</p>
-    </div>
-
-    <div class="card">
-      <h2>الشركات واختبار Chiron TEST</h2>
-      <div id="companies"></div>
-    </div>
-
-    <div class="card">
-      <h2>2. رحلة اختبار</h2>
-      <p class="small">أنشئ رحلة ثم START، وبعدها أدخل GPS الوصول والمسافة والسعر ثم STOP. لا تستخدم بيانات حقيقية في TEST.</p>
-      <div class="grid">
-        <select id="companyId"></select>
-        <input id="tripNumber" placeholder="رقم الرحلة، مثل TEST-001">
-        <input id="companyName" placeholder="اسم الشركة">
-        <input id="tripKbo" placeholder="KBO">
-        <input id="plate" placeholder="رقم اللوحة">
-        <input id="driverCard" placeholder="رقم بطاقة السائق">
-        <input id="startLat" placeholder="Start latitude، مثال 50.8503">
-        <input id="startLng" placeholder="Start longitude، مثال 4.3517">
-      </div>
-      <button onclick="createTrip()">إنشاء رحلة</button>
-      <div id="trips"></div>
-    </div>
-
-    <div class="card">
-      <h2>سجل رسائل Chiron</h2>
-      <div id="messages"></div>
-    </div>
-  </section>
+<div class="card">
+<h2>دخول الإدارة</h2>
+<input id="pw" type="password" placeholder="كلمة المرور">
+<button onclick="login()">دخول</button>
+<p id="msg"></p>
+</div>
 </main>
-
 <script>
-let token = localStorage.golden;
-let companies = [];
-
-const $ = id => document.getElementById(id);
-
-function esc(value) {
-  return String(value ?? '').replace(/[&<>"']/g, m => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[m]));
-}
-
-async function api(url, options = {}) {
-  options.headers = {
-    ...(options.headers || {}),
-    Authorization: 'Bearer ' + token,
-    'Content-Type': 'application/json'
-  };
-
-  const response = await fetch(url, options);
-  const data = await response.json();
-
-  if (response.status === 401) logout();
-
-  return data;
-}
-
-function showApp() {
-  if (token) {
-    $('login').className = 'hidden';
-    $('app').className = '';
-    load();
+async function login(){
+  var msg = document.getElementById('msg');
+  var pw = document.getElementById('pw').value;
+  msg.textContent = 'جاري التحقق...';
+  try {
+    var r = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: pw})
+    });
+    var d = await r.json();
+    if(r.ok && d.token){
+      localStorage.setItem('golden', d.token);
+      msg.style.color = 'green';
+      msg.textContent = 'تم الدخول بنجاح';
+    } else {
+      msg.style.color = '#b00';
+      msg.textContent = d.error || 'كلمة المرور غير صحيحة';
+    }
+  } catch(e){
+    msg.style.color = '#b00';
+    msg.textContent = 'خطأ في الاتصال: ' + e.message;
   }
 }
-
-async function login() {
-  const data = await api('/api/login', {
-    method: 'POST',
-    body: JSON.stringify({ password: $('pw').value })
-  });
-
-  if (data.token) {
-    token = data.token;
-    localStorage.golden = token;
-    showApp();
-  } else {
-    $('loginMsg').textContent = data.error || 'فشل تسجيل الدخول';
-  }
-}
-
-function logout() {
-  localStorage.removeItem('golden');
-  location.reload();
-}
-
-async function addCompany() {
-  const body = {};
-
-  ['name', 'kbo', 'email', 'phone', 'testClientId', 'testSecret', 'productionClientId', 'productionSecret']
-    .forEach(id => body[id] = $(id).value);
-
-  const data = await api('/api/companies', {
-    method: 'POST',
-    body: JSON.stringify(body)
-  });
-
-  if (data.error) {
-    alert(data.error);
-  } else {
-    alert('تم حفظ الشركة');
-    load();
-  }
-}
-
-async function hello(companyId) {
-  const data = await api('/api/chiron/' + companyId + '/hello', {
-    method: 'POST',
-    body: JSON.stringify({ environment: 'test' })
-  });
-
-  alert(data.ok ? 'نجح الاتصال: ' + JSON.stringify(data.response) : 'فشل: ' + JSON.stringify(data.error));
-}
-
-async function createTrip() {
-  const body = {
-    companyId: $('companyId').value,
-    tripNumber: $('tripNumber').value,
-    kbo: $('tripKbo').value,
-    companyName: $('companyName').value,
-    plate: $('plate').value,
-    driverCard: $('driverCard').value,
-    startLat: $('startLat').value,
-    startLng: $('startLng').value
-  };
-
-  const data = await api('/api/trips', {
-    method: 'POST',
-    body: JSON.stringify(body)
-  });
-
-  if (data.error) alert(data.error);
-  else load();
-}
-
-async function startTrip(id) {
-  const data = await api('/api/trips/' + id + '/start', {
-    method: 'POST',
-    body: JSON.stringify({ environment: 'test' })
-  });
-
-  alert(data.ok ? 'START نجح' : 'خطأ: ' + JSON.stringify(data.error));
-  load();
-}
-
-async function stopTrip(id) {
-  const lat = prompt('Aankomst latitude');
-  const lng = prompt('Aankomst longitude');
-  const km = prompt('المسافة KM، مثال 12.345');
-  const price = prompt('السعر EUR، مثال 22.50');
-
-  const data = await api('/api/trips/' + id + '/stop', {
-    method: 'POST',
-    body: JSON.stringify({
-      environment: 'test',
-      endLat: lat,
-      endLng: lng,
-      distanceKm: km,
-      price: price
-    })
-  });
-
-  alert(data.ok ? 'STOP نجح' : 'خطأ: ' + JSON.stringify(data.error));
-  load();
-}
-
-async function load() {
-  companies = await api('/api/companies');
-  const trips = await api('/api/trips');
-  const messages = await api('/api/messages');
-
-  $('companies').innerHTML = companies.map(company => `
-    <div class="card">
-      <b>${esc(company.name)}</b> — KBO: ${esc(company.kbo)}<br>
-      TEST: ${company.chiron.test.configured ? 'مضبوط' : 'ناقص'}
-      <button onclick="hello('${company.id}')">اختبار hello</button>
-    </div>
-  `).join('') || 'لا توجد شركة';
-
-  $('companyId').innerHTML = companies.map(company => `
-    <option value="${company.id}" data-kbo="${esc(company.kbo)}" data-name="${esc(company.name)}">
-      ${esc(company.name)}
-    </option>
-  `).join('');
-
-  const select = $('companyId');
-
-  if (select.value) {
-    const option = select.options[select.selectedIndex];
-    $('tripKbo').value = option.dataset.kbo;
-    $('companyName').value = option.dataset.name;
-  }
-
-  select.onchange = () => {
-    const option = select.options[select.selectedIndex];
-    $('tripKbo').value = option.dataset.kbo;
-    $('companyName').value = option.dataset.name;
-  };
-
-  $('trips').innerHTML = trips.map(trip => `
-    <div class="card">
-      <b>${esc(trip.tripNumber)}</b> — ${esc(trip.status)}<br>
-      ${esc(trip.plate)} / ${esc(trip.driverCard)}<br>
-      ${trip.status === 'BOOKED' ? `<button onclick="startTrip('${trip.id}')">START / vertrek</button>` : ''}
-      ${trip.status === 'STARTED' ? `<button onclick="stopTrip('${trip.id}')">STOP / aankomst</button>` : ''}
-    </div>
-  `).join('') || 'لا توجد رحلات';
-
-  $('messages').innerHTML = messages.slice().reverse().map(message => `
-    <pre class="${message.ok ? 'ok' : 'bad'}">
-      ${esc(message.status)} | ${esc(message.environment)} | ${esc(message.at)}
-      ${esc(JSON.stringify(message.response))}
-    </pre>
-  `).join('') || 'لا توجد رسائل';
-}
-
-showApp();
 </script>
 </body>
 </html>
