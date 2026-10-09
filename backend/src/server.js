@@ -1,16 +1,475 @@
-const express=require('express'),cors=require('cors'),helmet=require('helmet'),jwt=require('jsonwebtoken'),bcrypt=require('bcryptjs'),crypto=require('crypto'),fs=require('fs'),path=require('path'),axios=require('axios');const{Pool}=require('pg');require('dotenv').config();
-const app=express(),PORT=process.env.PORT||3000,JWT=process.env.JWT_SECRET||'dev-change-me',KEY=crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY||JWT).digest(),DB=process.env.DATABASE_URL?new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.NODE_ENV==='production'?{rejectUnauthorized:false}:false}):null,FALLBACK=path.join(__dirname,'fallback.json');
-const blank=()=>({companies:[],drivers:[],vehicles:[],customers:[],trips:[],invoices:[],messages:[],audit:[]});app.use(helmet({contentSecurityPolicy:false}));app.use(cors({origin:true}));app.use(express.json({limit:'500kb'}));
-function encrypt(v){if(!v)return'';const iv=crypto.randomBytes(12),c=crypto.createCipheriv('aes-256-gcm',KEY,iv);const out=c.update(v,'utf8','base64')+c.final('base64');return [iv.toString('base64'),c.getAuthTag().toString('base64'),out].join('.')};function decrypt(v){try{const[a,b,c]=v.split('.'),d=crypto.createDecipheriv('aes-256-gcm',KEY,Buffer.from(a,'base64'));d.setAuthTag(Buffer.from(b,'base64'));return d.update(c,'base64','utf8')+d.final('utf8')}catch{return''}}
-async function get(){if(!DB){try{return JSON.parse(fs.readFileSync(FALLBACK))}catch{return blank()}}const r=await DB.query('SELECT data FROM golden_state WHERE id=1');return r.rows[0]?.data||blank()}async function put(d){if(!DB)return fs.writeFileSync(FALLBACK,JSON.stringify(d,null,2));await DB.query('INSERT INTO golden_state(id,data) VALUES(1,$1) ON CONFLICT(id) DO UPDATE SET data=$1,updated_at=now()',[d])}function auth(q,s,n){try{q.user=jwt.verify((q.headers.authorization||'').split(' ')[1],JWT);n()}catch{return s.status(401).json({error:'Unauthorized'})}}function audit(d,a,t,id){d.audit.push({id:crypto.randomUUID(),action:a,type:t,itemId:id,at:new Date().toISOString()})}
-const envs={test:{oauth:'https://mow-acc.api.vlaanderen.be/oauth/token',trip:'https://mow-acc.api.vlaanderen.be/chiron/taxirit',hello:'https://mow-acc.api.vlaanderen.be/chiron/hello'},production:{oauth:'https://mow.api.vlaanderen.be/oauth/token',trip:'https://mow.api.vlaanderen.be/chiron/taxirit'}};
-async function token(company,environment){const c=company.chiron?.[environment];if(!c?.clientId||!c?.secret)throw Error('Client ID أو Secret غير موجودين');const basic=Buffer.from(c.clientId+':'+decrypt(c.secret)).toString('base64');const r=await axios.post(envs[environment].oauth,'grant_type=client_credentials',{headers:{Authorization:'Basic '+basic,'Content-Type':'application/x-www-form-urlencoded'},timeout:15000});return r.data.access_token}
-function payload(t,status){const r={taxibedrijf:{aanbieder:{registratie:t.kbo,naam:t.companyName}},voertuig:{nummerplaat:t.plate},uitvoerder:{bestuurderspasnummer:t.driverCard},vertrektijdstip:t.startedAt,vertrekpunt:{lengtegraad:Number(t.startLng),breedtegraad:Number(t.startLat)}};if(status==='aankomst'){r.aankomsttijdstip=t.endedAt;r.aankomstpunt={lengtegraad:Number(t.endLng),breedtegraad:Number(t.endLat)};r.afstand={waarde:Number(t.distanceKm)};r.kostprijs={waarde:Number(t.price)}}return{status,ritnummer:t.tripNumber,rit:r,broncreatiedatum:new Date().toISOString()}}
-app.get('/api/health',(_,s)=>s.json({ok:true,db:!!DB}));app.post('/api/login',(q,s)=>{if(!process.env.ADMIN_PASSWORD_HASH||!bcrypt.compareSync(String(q.body.password||''),process.env.ADMIN_PASSWORD_HASH))return s.status(401).json({error:'كلمة المرور غير صحيحة'});s.json({token:jwt.sign({role:'admin'},JWT,{expiresIn:'12h'})})});
-app.get('/api/:type',auth,async(q,s)=>{const d=await get(),ok=['companies','drivers','vehicles','customers','trips','invoices','messages','audit'];if(!ok.includes(q.params.type))return s.status(404).end();let x=d[q.params.type];if(q.params.type==='companies')x=x.map(c=>({...c,chiron:{test:{clientId:c.chiron?.test?.clientId||'',configured:!!c.chiron?.test?.secret},production:{clientId:c.chiron?.production?.clientId||'',configured:!!c.chiron?.production?.secret}}}));s.json(x)});
-app.post('/api/companies',auth,async(q,s)=>{const d=await get(),b=q.body;if(!b.name||!b.kbo)return s.status(400).json({error:'اسم الشركة وKBO مطلوبان'});const x={id:crypto.randomUUID(),name:b.name,kbo:b.kbo,address:b.address||'',email:b.email||'',phone:b.phone||'',chiron:{test:{clientId:b.testClientId||'',secret:encrypt(b.testSecret||'')},production:{clientId:b.productionClientId||'',secret:encrypt(b.productionSecret||'')}},createdAt:new Date().toISOString()};d.companies.push(x);audit(d,'create','company',x.id);await put(d);s.status(201).json({id:x.id})});
-app.put('/api/companies/:id/chiron',auth,async(q,s)=>{const d=await get(),c=d.companies.find(x=>x.id===q.params.id),b=q.body;if(!c)return s.status(404).json({error:'الشركة غير موجودة'});if(!['test','production'].includes(b.environment))return s.status(400).json({error:'بيئة غير صحيحة'});c.chiron[b.environment]={clientId:b.clientId||'',secret:b.secret?encrypt(b.secret):c.chiron[b.environment]?.secret||''};audit(d,'update_credentials',b.environment,c.id);await put(d);s.json({ok:true})});
-app.post('/api/chiron/:companyId/hello',auth,async(q,s)=>{try{const d=await get(),c=d.companies.find(x=>x.id===q.params.companyId),e=q.body.environment||'test';if(e!=='test')return s.status(400).json({error:'hello متاح في TEST فقط'});const basic=Buffer.from(c.chiron.test.clientId+':'+decrypt(c.chiron.test.secret)).toString('base64');const r=await axios.get(envs.test.hello,{headers:{Authorization:'Basic '+basic},timeout:15000});s.json({ok:true,response:r.data})}catch(e){s.status(400).json({ok:false,error:e.response?.data||e.message})}});
-app.post('/api/trips',auth,async(q,s)=>{const d=await get(),b=q.body,required=['companyId','tripNumber','kbo','companyName','plate','driverCard','startLat','startLng'];for(const k of required)if(b[k]===undefined||b[k]==='')return s.status(400).json({error:'حقل مطلوب: '+k});const x={id:crypto.randomUUID(),status:'BOOKED',createdAt:new Date().toISOString(),...b};d.trips.push(x);audit(d,'create','trip',x.id);await put(d);s.status(201).json(x)});
-app.post('/api/trips/:id/:action',auth,async(q,s)=>{try{const d=await get(),t=d.trips.find(x=>x.id===q.params.id),action=q.params.action;if(!t)return s.status(404).json({error:'الرحلة غير موجودة'});if(!['start','stop','cancel'].includes(action))return s.status(404).end();if(action==='cancel'){if(['STARTED','COMPLETED'].includes(t.status))return s.status(400).json({error:'لا يمكن إلغاء رحلة بدأت'});t.status=q.body.reason==='NO_SHOW'?'NO_SHOW':'CANCELLED';t.cancelReason=q.body.reason||'OTHER';await put(d);return s.json(t)}const status=action==='start'?'vertrek':'aankomst';if(action==='start'&&t.status!=='BOOKED')return s.status(400).json({error:'الرحلة ليست جاهزة للبدء'});if(action==='stop'&&t.status!=='STARTED')return s.status(400).json({error:'يجب إرسال START أولاً'});if(action==='start'){t.startedAt=q.body.startedAt||new Date().toISOString();t.startLat=q.body.startLat??t.startLat;t.startLng=q.body.startLng??t.startLng}else{t.endedAt=q.body.endedAt||new Date().toISOString();t.endLat=q.body.endLat;t.endLng=q.body.endLng;t.distanceKm=q.body.distanceKm;t.price=q.body.price;for(const k of ['endLat','endLng','distanceKm','price'])if(t[k]===undefined||t[k]==='')return s.status(400).json({error:'حقل وصول مطلوب: '+k})}const c=d.companies.find(x=>x.id===t.companyId),environment=q.body.environment||'test',body=payload(t,status),access=await token(c,environment),r=await axios.post(envs[environment].trip,body,{headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},timeout:20000}),m={id:crypto.randomUUID(),tripId:t.id,environment,status,request:body,response:r.data,at:new Date().toISOString(),ok:!(r.data?.fouten?.length)};d.messages.push(m);t.status=action==='start'?'STARTED':'COMPLETED';audit(d,'chiron_'+status,'trip',t.id);await put(d);s.json({ok:m.ok,chiron:r.data,trip:t})}catch(e){s.status(400).json({ok:false,error:e.response?.data||e.message})}});
-app.use(express.static(path.join(__dirname,'../../frontend')));app.get('*',(_,s)=>s.sendFile(path.join(__dirname,'../../frontend/index.html')));(async()=>{if(DB)await DB.query(fs.readFileSync(path.join(__dirname,'../migrations/001_init.sql'),'utf8'));else if(!fs.existsSync(FALLBACK))fs.writeFileSync(FALLBACK,JSON.stringify(blank(),null,2));app.listen(PORT,()=>console.log('Golden Chiron running '+PORT))})().catch(e=>{console.error(e);process.exit(1)});
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-change-me';
+const KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || JWT_SECRET).digest();
+
+const DB = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    })
+  : null;
+
+const FALLBACK_FILE = path.join(__dirname, 'fallback.json');
+
+const ENVIRONMENTS = {
+  test: {
+    oauth: 'https://mow-acc.api.vlaanderen.be/oauth/token',
+    trip: 'https://mow-acc.api.vlaanderen.be/chiron/taxirit',
+    hello: 'https://mow-acc.api.vlaanderen.be/chiron/hello'
+  },
+  production: {
+    oauth: 'https://mow.api.vlaanderen.be/oauth/token',
+    trip: 'https://mow.api.vlaanderen.be/chiron/taxirit'
+  }
+};
+
+const blankState = () => ({
+  companies: [],
+  drivers: [],
+  vehicles: [],
+  customers: [],
+  trips: [],
+  invoices: [],
+  messages: [],
+  audit: []
+});
+
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: true }));
+app.use(express.json({ limit: '500kb' }));
+
+function encryptValue(value) {
+  if (!value) return '';
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv);
+  const encrypted = cipher.update(value, 'utf8', 'base64') + cipher.final('base64');
+  return [iv.toString('base64'), cipher.getAuthTag().toString('base64'), encrypted].join('.');
+}
+
+function decryptValue(value) {
+  try {
+    const [iv, tag, encrypted] = value.split('.');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', KEY, Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(tag, 'base64'));
+    return decipher.update(encrypted, 'base64', 'utf8') + decipher.final('utf8');
+  } catch {
+    return '';
+  }
+}
+
+async function getState() {
+  if (!DB) {
+    try {
+      return JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf8'));
+    } catch {
+      return blankState();
+    }
+  }
+
+  const result = await DB.query('SELECT data FROM golden_state WHERE id = 1');
+  return result.rows[0]?.data || blankState();
+}
+
+async function saveState(state) {
+  if (!DB) {
+    fs.writeFileSync(FALLBACK_FILE, JSON.stringify(state, null, 2));
+    return;
+  }
+
+  await DB.query(
+    `INSERT INTO golden_state (id, data)
+     VALUES (1, $1)
+     ON CONFLICT (id)
+     DO UPDATE SET data = $1, updated_at = now()`,
+    [state]
+  );
+}
+
+function requireAuth(req, res, next) {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.split(' ')[1];
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+}
+
+function addAudit(state, action, type, itemId) {
+  state.audit.push({
+    id: crypto.randomUUID(),
+    action,
+    type,
+    itemId,
+    at: new Date().toISOString()
+  });
+}
+
+async function getAccessToken(company, environment) {
+  const credentials = company.chiron?.[environment];
+
+  if (!credentials?.clientId || !credentials?.secret) {
+    throw new Error('Client ID أو Client Secret غير موجودين لهذه البيئة');
+  }
+
+  const basic = Buffer.from(credentials.clientId + ':' + decryptValue(credentials.secret)).toString('base64');
+
+  const response = await axios.post(
+    ENVIRONMENTS[environment].oauth,
+    'grant_type=client_credentials',
+    {
+      headers: {
+        Authorization: 'Basic ' + basic,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      timeout: 15000
+    }
+  );
+
+  return response.data.access_token;
+}
+
+function buildChironPayload(trip, status) {
+  const payload = {
+    taxibedrijf: {
+      aanbieder: {
+        registratie: trip.kbo,
+        naam: trip.companyName
+      }
+    },
+    voertuig: {
+      nummerplaat: trip.plate
+    },
+    uitvoerder: {
+      bestuurderspasnummer: trip.driverCard
+    },
+    vertrektijdstip: trip.startedAt,
+    vertrekpunt: {
+      lengtegraad: Number(trip.startLng),
+      breedtegraad: Number(trip.startLat)
+    }
+  };
+
+  if (status === 'aankomst') {
+    payload.aankomsttijdstip = trip.endedAt;
+    payload.aankomstpunt = {
+      lengtegraad: Number(trip.endLng),
+      breedtegraad: Number(trip.endLat)
+    };
+    payload.afstand = {
+      waarde: Number(trip.distanceKm)
+    };
+    payload.kostprijs = {
+      waarde: Number(trip.price)
+    };
+  }
+
+  return {
+    status,
+    ritnummer: trip.tripNumber,
+    rit: payload,
+    broncreatiedatum: new Date().toISOString()
+  };
+}
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, database: Boolean(DB) });
+});
+
+app.post('/api/login', (req, res) => {
+  const password = String(req.body.password || '');
+
+  if (!process.env.ADMIN_PASSWORD_HASH || !bcrypt.compareSync(password, process.env.ADMIN_PASSWORD_HASH)) {
+    return res.status(401).json({ error: 'كلمة المرور غير صحيحة' });
+  }
+
+  const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
+  res.json({ token });
+});
+
+app.get('/api/:type', requireAuth, async (req, res) => {
+  const allowed = ['companies', 'drivers', 'vehicles', 'customers', 'trips', 'invoices', 'messages', 'audit'];
+
+  if (!allowed.includes(req.params.type)) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  const state = await getState();
+  let items = state[req.params.type];
+
+  if (req.params.type === 'companies') {
+    items = items.map(company => ({
+      ...company,
+      chiron: {
+        test: {
+          clientId: company.chiron?.test?.clientId || '',
+          configured: Boolean(company.chiron?.test?.secret)
+        },
+        production: {
+          clientId: company.chiron?.production?.clientId || '',
+          configured: Boolean(company.chiron?.production?.secret)
+        }
+      }
+    }));
+  }
+
+  res.json(items);
+});
+
+app.post('/api/companies', requireAuth, async (req, res) => {
+  const state = await getState();
+  const body = req.body;
+
+  if (!body.name || !body.kbo) {
+    return res.status(400).json({ error: 'اسم الشركة و KBO مطلوبان' });
+  }
+
+  const company = {
+    id: crypto.randomUUID(),
+    name: body.name,
+    kbo: body.kbo,
+    address: body.address || '',
+    email: body.email || '',
+    phone: body.phone || '',
+    chiron: {
+      test: {
+        clientId: body.testClientId || '',
+        secret: encryptValue(body.testSecret || '')
+      },
+      production: {
+        clientId: body.productionClientId || '',
+        secret: encryptValue(body.productionSecret || '')
+      }
+    },
+    createdAt: new Date().toISOString()
+  };
+
+  state.companies.push(company);
+  addAudit(state, 'create', 'company', company.id);
+  await saveState(state);
+
+  res.status(201).json({ id: company.id });
+});
+
+app.put('/api/companies/:id/chiron', requireAuth, async (req, res) => {
+  const state = await getState();
+  const company = state.companies.find(item => item.id === req.params.id);
+  const body = req.body;
+
+  if (!company) {
+    return res.status(404).json({ error: 'الشركة غير موجودة' });
+  }
+
+  if (!['test', 'production'].includes(body.environment)) {
+    return res.status(400).json({ error: 'بيئة غير صحيحة' });
+  }
+
+  company.chiron[body.environment] = {
+    clientId: body.clientId || '',
+    secret: body.secret ? encryptValue(body.secret) : company.chiron[body.environment]?.secret || ''
+  };
+
+  addAudit(state, 'update_credentials', body.environment, company.id);
+  await saveState(state);
+
+  res.json({ ok: true });
+});
+
+app.post('/api/chiron/:companyId/hello', requireAuth, async (req, res) => {
+  try {
+    const state = await getState();
+    const company = state.companies.find(item => item.id === req.params.companyId);
+    const environment = req.body.environment || 'test';
+
+    if (!company) {
+      return res.status(404).json({ error: 'الشركة غير موجودة' });
+    }
+
+    if (environment !== 'test') {
+      return res.status(400).json({ error: 'hello متاح في TEST فقط' });
+    }
+
+    const credentials = company.chiron.test;
+    const basic = Buffer.from(credentials.clientId + ':' + decryptValue(credentials.secret)).toString('base64');
+
+    const response = await axios.get(ENVIRONMENTS.test.hello, {
+      headers: {
+        Authorization: 'Basic ' + basic
+      },
+      timeout: 15000
+    });
+
+    res.json({ ok: true, response: response.data });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      error: error.response?.data || error.message
+    });
+  }
+});
+
+app.post('/api/trips', requireAuth, async (req, res) => {
+  const state = await getState();
+  const body = req.body;
+
+  const required = [
+    'companyId',
+    'tripNumber',
+    'kbo',
+    'companyName',
+    'plate',
+    'driverCard',
+    'startLat',
+    'startLng'
+  ];
+
+  for (const field of required) {
+    if (body[field] === undefined || body[field] === '') {
+      return res.status(400).json({ error: 'حقل مطلوب: ' + field });
+    }
+  }
+
+  const trip = {
+    id: crypto.randomUUID(),
+    status: 'BOOKED',
+    createdAt: new Date().toISOString(),
+    ...body
+  };
+
+  state.trips.push(trip);
+  addAudit(state, 'create', 'trip', trip.id);
+  await saveState(state);
+
+  res.status(201).json(trip);
+});
+
+app.post('/api/trips/:id/:action', requireAuth, async (req, res) => {
+  try {
+    const state = await getState();
+    const trip = state.trips.find(item => item.id === req.params.id);
+    const action = req.params.action;
+
+    if (!trip) {
+      return res.status(404).json({ error: 'الرحلة غير موجودة' });
+    }
+
+    if (!['start', 'stop', 'cancel'].includes(action)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    if (action === 'cancel') {
+      if (['STARTED', 'COMPLETED'].includes(trip.status)) {
+        return res.status(400).json({ error: 'لا يمكن إلغاء رحلة بدأت' });
+      }
+
+      trip.status = req.body.reason === 'NO_SHOW' ? 'NO_SHOW' : 'CANCELLED';
+      trip.cancelReason = req.body.reason || 'OTHER';
+
+      await saveState(state);
+      return res.json(trip);
+    }
+
+    const status = action === 'start' ? 'vertrek' : 'aankomst';
+
+    if (action === 'start' && trip.status !== 'BOOKED') {
+      return res.status(400).json({ error: 'الرحلة ليست جاهزة للبدء' });
+    }
+
+    if (action === 'stop' && trip.status !== 'STARTED') {
+      return res.status(400).json({ error: 'يجب إرسال START أولاً' });
+    }
+
+    if (action === 'start') {
+      trip.startedAt = req.body.startedAt || new Date().toISOString();
+      trip.startLat = req.body.startLat ?? trip.startLat;
+      trip.startLng = req.body.startLng ?? trip.startLng;
+    } else {
+      trip.endedAt = req.body.endedAt || new Date().toISOString();
+      trip.endLat = req.body.endLat;
+      trip.endLng = req.body.endLng;
+      trip.distanceKm = req.body.distanceKm;
+      trip.price = req.body.price;
+
+      const required = ['endLat', 'endLng', 'distanceKm', 'price'];
+
+      for (const field of required) {
+        if (trip[field] === undefined || trip[field] === '') {
+          return res.status(400).json({ error: 'حقل وصول مطلوب: ' + field });
+        }
+      }
+    }
+
+    const company = state.companies.find(item => item.id === trip.companyId);
+    const environment = req.body.environment || 'test';
+    const payload = buildChironPayload(trip, status);
+    const accessToken = await getAccessToken(company, environment);
+
+    const response = await axios.post(ENVIRONMENTS[environment].trip, payload, {
+      headers: {
+        Authorization: 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      timeout: 20000
+    });
+
+    const message = {
+      id: crypto.randomUUID(),
+      tripId: trip.id,
+      environment,
+      status,
+      request: payload,
+      response: response.data,
+      at: new Date().toISOString(),
+      ok: !response.data?.fouten?.length
+    };
+
+    state.messages.push(message);
+    trip.status = action === 'start' ? 'STARTED' : 'COMPLETED';
+
+    addAudit(state, 'chiron_' + status, 'trip', trip.id);
+    await saveState(state);
+
+    res.json({ ok: message.ok, chiron: response.data, trip });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      error: error.response?.data || error.message
+    });
+  }
+});
+
+app.use(express.static(path.join(__dirname, '../../frontend')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../frontend/index.html'));
+});
+
+(async () => {
+  if (DB) {
+    const migration = fs.readFileSync(path.join(__dirname, '../migrations/001_init.sql'), 'utf8');
+    await DB.query(migration);
+  } else if (!fs.existsSync(FALLBACK_FILE)) {
+    fs.writeFileSync(FALLBACK_FILE, JSON.stringify(blankState(), null, 2));
+  }
+
+  app.listen(PORT, () => {
+    console.log('Golden Taxi Chiron running on port ' + PORT);
+  });
+})().catch(error => {
+  console.error(error);
+  process.exit(1);
+});
