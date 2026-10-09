@@ -192,8 +192,18 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/login', (req, res) => {
   const password = String(req.body.password || '');
+  const expected = process.env.ADMIN_PASSWORD || '';
+  const hash = process.env.ADMIN_PASSWORD_HASH || '';
 
-  if (!process.env.ADMIN_PASSWORD_HASH || !bcrypt.compareSync(password, process.env.ADMIN_PASSWORD_HASH)) {
+  let ok = false;
+
+  if (expected && password === expected) {
+    ok = true;
+  } else if (hash && bcrypt.compareSync(password, hash)) {
+    ok = true;
+  }
+
+  if (!ok) {
     return res.status(401).json({ error: 'كلمة المرور غير صحيحة' });
   }
 
