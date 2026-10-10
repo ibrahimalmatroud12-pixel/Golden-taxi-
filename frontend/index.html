@@ -56,6 +56,8 @@ th{background:#f0f0f0}
 <div id="app" class="hidden">
 <div class="nav">
 <button onclick="showTab('companies')">الشركات</button>
+<button onclick="showTab('testcreds')">بيانات TEST</button>
+<button onclick="showTab('prodcreds')">بيانات Production</button>
 <button onclick="showTab('drivers')">السائقون</button>
 <button onclick="showTab('vehicles')">المركبات</button>
 <button onclick="showTab('customers')">الزبائن</button>
@@ -74,12 +76,29 @@ th{background:#f0f0f0}
 <input id="caddress" placeholder="العنوان">
 <input id="cemail" placeholder="البريد">
 <input id="cphone" placeholder="الهاتف">
-<input id="ctestid" placeholder="TEST Client ID">
-<input id="ctestsecret" type="password" placeholder="TEST Client Secret">
-<input id="cprodid" placeholder="Production Client ID">
-<input id="cprodsecret" type="password" placeholder="Production Client Secret">
 <button onclick="addCompany()">حفظ الشركة</button>
 <div id="companiesList"></div>
+</div>
+
+<div id="tab-testcreds" class="card hidden">
+<h2>بيانات Chiron TEST</h2>
+<p class="small">تُستخدم للرحلات التجريبية واختبار hello.</p>
+<select id="testCompany"></select>
+<input id="testClientId" placeholder="TEST Client ID">
+<input id="testClientSecret" type="password" placeholder="TEST Client Secret">
+<button onclick="saveCreds('test')">حفظ بيانات TEST</button>
+<button onclick="hello($('testCompany').value)">اختبار hello</button>
+<p id="testMsg" class="small"></p>
+</div>
+
+<div id="tab-prodcreds" class="card hidden">
+<h2>بيانات Chiron Production</h2>
+<p class="small">لا تدخلها إلا بعد نجاح 5 رحلات TEST و10 رسائل.</p>
+<select id="prodCompany"></select>
+<input id="prodClientId" placeholder="Production Client ID">
+<input id="prodClientSecret" type="password" placeholder="Production Client Secret">
+<button onclick="saveCreds('production')">حفظ بيانات Production</button>
+<p id="prodMsg" class="small"></p>
 </div>
 
 <div id="tab-drivers" class="card hidden">
@@ -159,12 +178,22 @@ var token=localStorage.getItem('golden'),companies=[],trips=[],drivers=[],vehicl
 function $(id){return document.getElementById(id)}
 function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
 async function api(u,o){o=o||{};o.headers=o.headers||{};o.headers['Content-Type']='application/json';if(token)o.headers['Authorization']='Bearer '+token;var r=await fetch(u,o);var d=await r.json();if(r.status===401)logout();return d}
-function showTab(t){['companies','drivers','vehicles','customers','trips','invoices','report','acceptance','messages'].forEach(function(x){$('tab-'+x).classList.toggle('hidden',x!==t)})}
+function showTab(t){['companies','testcreds','prodcreds','drivers','vehicles','customers','trips','invoices','report','acceptance','messages'].forEach(function(x){$('tab-'+x).classList.toggle('hidden',x!==t)})}
 function show(){if(token){$('login').classList.add('hidden');$('app').classList.remove('hidden');showTab('companies');load()}}
 async function login(){var d=await api('/api/login',{method:'POST',body:JSON.stringify({password:$('pw').value})});if(d.token){token=d.token;localStorage.setItem('golden',token);show()}else{$('loginMsg').textContent=d.error||'خطأ'}}
 function logout(){localStorage.removeItem('golden');location.reload()}
-async function addCompany(){var d=await api('/api/companies',{method:'POST',body:JSON.stringify({name:$('cname').value,kbo:$('ckbo').value,btw:$('cbtw').value,address:$('caddress').value,email:$('cemail').value,phone:$('cphone').value,testClientId:$('ctestid').value,testSecret:$('ctestsecret').value,productionClientId:$('cprodid').value,productionSecret:$('cprodsecret').value})});if(d.error)alert(d.error);else load()}
-async function hello(id){var d=await api('/api/chiron/'+id+'/hello',{method:'POST',body:JSON.stringify({environment:'test'})});alert(d.ok?'نجح الاتصال':'فشل: '+JSON.stringify(d.error));load()}
+async function addCompany(){var d=await api('/api/companies',{method:'POST',body:JSON.stringify({name:$('cname').value,kbo:$('ckbo').value,btw:$('cbtw').value,address:$('caddress').value,email:$('cemail').value,phone:$('cphone').value})});if(d.error)alert(d.error);else load()}
+async function hello(id){if(!id){alert('اختر شركة أولاً');return}var d=await api('/api/chiron/'+id+'/hello',{method:'POST',body:JSON.stringify({environment:'test'})});alert(d.ok?'نجح الاتصال':'فشل: '+JSON.stringify(d.error));load()}
+async function saveCreds(env){
+ var companyId=env==='test'?$('testCompany').value:$('prodCompany').value;
+ var clientId=env==='test'?$('testClientId').value:$('prodClientId').value;
+ var secret=env==='test'?$('testClientSecret').value:$('prodClientSecret').value;
+ var msg=env==='test'?$('testMsg'):$('prodMsg');
+ if(!companyId){msg.style.color='#b00';msg.textContent='اختر شركة أولاً';return}
+ var d=await api('/api/companies/'+companyId+'/chiron',{method:'PUT',body:JSON.stringify({environment:env,clientId:clientId,secret:secret})});
+ if(d.error){msg.style.color='#b00';msg.textContent=d.error}
+ else{msg.style.color='green';msg.textContent='تم حفظ بيانات '+env+' بنجاح';if(env==='test')$('testClientSecret').value='';else $('prodClientSecret').value='';load()}
+}
 async function addItem(type,body){var d=await api('/api/'+type,{method:'POST',body:JSON.stringify(body)});if(d.error)alert(d.error);else load()}
 async function removeItem(type,id){if(!confirm('حذف؟'))return;await api('/api/'+type+'/'+id,{method:'DELETE'});load()}
 async function createTrip(){var c=companies.find(function(x){return x.id===$('tripCompany').value});var d=await api('/api/trips',{method:'POST',body:JSON.stringify({companyId:$('tripCompany').value,environment:$('tripEnv').value,tripNumber:$('tripNumber').value,kbo:c?c.kbo:'',companyName:c?c.name:'',plate:$('tripPlate').value,driverCard:$('tripDriver').value,passenger:$('tripPassenger').value,payment:$('tripPayment').value,startLat:$('tripStartLat').value,startLng:$('tripStartLng').value})});if(d.error)alert(d.error);else load()}
@@ -173,10 +202,11 @@ async function stopTrip(id){var t=trips.find(function(x){return x.id===id});var 
 function duration(t){if(!t.startedAt||!t.endedAt)return '-';var m=Math.round((new Date(t.endedAt)-new Date(t.startedAt))/60000);return m+' min'}
 function makeInvoice(t){var total=Number(t.price||0),vat=total*0.06,net=total-vat;var inv={tripId:t.id,tripNumber:t.tripNumber,kbo:t.kbo,companyName:t.companyName,plate:t.plate,driverCard:t.driverCard,passenger:t.passenger,payment:t.payment,startLat:t.startLat,startLng:t.startLng,endLat:t.endLat,endLng:t.endLng,distanceKm:t.distanceKm,startedAt:t.startedAt,endedAt:t.endedAt,price:total,vat:vat.toFixed(2),net:net.toFixed(2),status:'UNPAID',chironStatus:'SUCCESS',date:new Date().toISOString()};api('/api/invoices',{method:'POST',body:JSON.stringify(inv)}).then(function(){load()})}
 async function markPaid(id){await api('/api/invoices/'+id,{method:'PUT',body:JSON.stringify({status:'PAID'})});load()}
-function printInvoice(i){var p=$('printArea');document.body.classList.add('invoicePrint');p.className='invoiceMode';p.innerHTML='<div class="center"><b>'+esc(i.companyName||'GOLDEN TAXI')+'</b></div><div class="center" style="font-size:11px">KBO: '+esc(i.kbo)+' | BTW: '+esc(i.btw||'-')+'</div><hr><div class="center"><b>VERVOERBEWIJS</b></div><div class="center" style="font-size:11px">Digitaal Ritbeheer — Vervoerplatform</div><div>Nr: '+esc(i.tripNumber)+'</div><div>'+new Date(i.date).toLocaleString()+'</div><hr><div><b>RITREGISTRATIE</b></div><div>Ritnummer: '+esc(i.tripNumber)+'</div><hr><div><b>CHAUFFEUR</b></div><div>Bestuurderskaart: '+esc(i.driverCard)+'</div><hr><div><b>VOERTUIG</b></div><div>Nummerplaat: '+esc(i.plate)+'</div><hr><div><b>RITGEGEVENS</b></div><div>Vertrektijd: '+new Date(i.startedAt).toLocaleTimeString()+'</div><div>Aankomsttijd: '+new Date(i.endedAt).toLocaleTimeString()+'</div><div>Passagier: '+esc(i.passenger||'-')+'</div><div>GPS vertrek: '+esc(i.startLat)+', '+esc(i.startLng)+'</div><div>GPS aankomst: '+esc(i.endLat)+', '+esc(i.endLng)+'</div><div>Afstand: '+esc(i.distanceKm)+' km</div><div>Duur: '+duration(i)+'</div><div>Betaalwijze: '+esc(i.payment||'-')+'</div><hr><div>Bedrag excl. BTW: €'+esc(i.net)+'</div><div>BTW (6%): €'+esc(i.vat)+'</div><div class="big">TOTAAL: €'+Number(i.price).toFixed(2)+'</div><hr><div><b>CHIRON TRANSMISSIE</b></div><div>Status: '+esc(i.chironStatus)+'</div><hr><div class="center" style="font-size:10px">Vervoer onderworpen aan 6% BTW.</div><div class="center" style="font-size:10px">Ritregistratie conform Art. 33 & 34 — Vlaanderen MOW.</div><div class="center" style="font-size:10px">Automatisch gegenereerd.</div>';window.print();setTimeout(function(){document.body.classList.remove('invoicePrint')},500)}
+function printInvoice(i){var p=$('printArea');document.body.classList.add('invoicePrint');p.className='invoiceMode';p.innerHTML='<div class="center"><b>'+esc(i.companyName||'GOLDEN TAXI')+'</b></div><div class="center" style="font-size:11px">KBO: '+esc(i.kbo)+'</div><hr><div class="center"><b>VERVOERBEWIJS</b></div><div class="center" style="font-size:11px">Digitaal Ritbeheer — Vervoerplatform</div><div>Nr: '+esc(i.tripNumber)+'</div><div>'+new Date(i.date).toLocaleString()+'</div><hr><div><b>RITREGISTRATIE</b></div><div>Ritnummer: '+esc(i.tripNumber)+'</div><hr><div><b>CHAUFFEUR</b></div><div>Bestuurderskaart: '+esc(i.driverCard)+'</div><hr><div><b>VOERTUIG</b></div><div>Nummerplaat: '+esc(i.plate)+'</div><hr><div><b>RITGEGEVENS</b></div><div>Vertrektijd: '+new Date(i.startedAt).toLocaleTimeString()+'</div><div>Aankomsttijd: '+new Date(i.endedAt).toLocaleTimeString()+'</div><div>Passagier: '+esc(i.passenger||'-')+'</div><div>GPS vertrek: '+esc(i.startLat)+', '+esc(i.startLng)+'</div><div>GPS aankomst: '+esc(i.endLat)+', '+esc(i.endLng)+'</div><div>Afstand: '+esc(i.distanceKm)+' km</div><div>Duur: '+duration(i)+'</div><div>Betaalwijze: '+esc(i.payment||'-')+'</div><hr><div>Bedrag excl. BTW: €'+esc(i.net)+'</div><div>BTW (6%): €'+esc(i.vat)+'</div><div class="big">TOTAAL: €'+Number(i.price).toFixed(2)+'</div><hr><div><b>CHIRON TRANSMISSIE</b></div><div>Status: '+esc(i.chironStatus)+'</div><hr><div class="center" style="font-size:10px">Vervoer onderworpen aan 6% BTW.</div><div class="center" style="font-size:10px">Ritregistratie conform Art. 33 & 34 — Vlaanderen MOW.</div><div class="center" style="font-size:10px">Automatisch gegenereerd.</div>';window.print();setTimeout(function(){document.body.classList.remove('invoicePrint')},500)}
 function buildAcceptance(){
  var c=companies[0];
- if(!c){alert('أضف شركة أولاً');return}
+ if(!c){$('acceptanceBox').innerHTML='<div class="card"><b>لا توجد شركة بعد.</b><br>أضف الشركة من تبويب «الشركات»، ثم أضف بيانات TEST من تبويب «بيانات TEST».</div>';showTab('acceptance');return}
+ if(!trips.length){$('acceptanceBox').innerHTML='<div class="card"><b>لا توجد رحلات بعد.</b><br>اذهب إلى تبويب «الرحلات»، اختر TEST، وأنشئ 5 رحلات تجريبية، ثم أرسل START وSTOP لكل رحلة.</div>';showTab('acceptance');return}
  var testTrips=trips.filter(function(t){return (t.environment||'test')==='test'});
  var done=testTrips.filter(function(t){return t.status==='COMPLETED'});
  var testMsgs=messages.filter(function(m){return m.environment==='test'});
@@ -204,11 +234,13 @@ function exportCSV(){var rows=[['Trip','Environment','Status','Plate','Driver','
 function buildReport(){var done=trips.filter(function(t){return t.status==='COMPLETED'}),km=0,total=0;done.forEach(function(t){km+=Number(t.distanceKm||0);total+=Number(t.price||0)});var rows=trips.map(function(t){var inv=invoices.find(function(x){return x.tripId===t.id});var btn=inv?' <button onclick=\'printInvoice('+JSON.stringify(JSON.stringify(inv))+')\'>فاتورة</button>':(t.status==='COMPLETED'?' <button onclick=\'makeInvoice('+JSON.stringify(JSON.stringify(t))+')\'>إنشاء فاتورة</button>':'');return '<tr><td>'+esc(t.tripNumber)+'</td><td>'+esc(t.environment||'test')+'</td><td>'+esc(t.status)+'</td><td>'+esc(t.plate)+'</td><td>'+esc(t.driverCard)+'</td><td>'+esc(t.distanceKm||'-')+'</td><td>'+esc(t.price||'-')+'</td><td>'+duration(t)+'</td><td>'+btn+'</td></tr>'}).join('');$('reportBox').innerHTML='<table><tr><th>الرحلة</th><th>البيئة</th><th>الحالة</th><th>اللوحة</th><th>السائق</th><th>كم</th><th>يورو</th><th>المدة</th><th>فاتورة</th></tr>'+rows+'</table><p><b>مكتملة:</b> '+done.length+' / '+trips.length+'<br><b>إجمالي كم:</b> '+km.toFixed(3)+'<br><b>إجمالي يورو:</b> '+total.toFixed(2)+'<br><b>BTW 6%:</b> '+(total*0.06).toFixed(2)+'</p>'}
 async function load(){
  companies=await api('/api/companies');trips=await api('/api/trips');drivers=await api('/api/drivers');vehicles=await api('/api/vehicles');customers=await api('/api/customers');invoices=await api('/api/invoices');messages=await api('/api/messages');
- $('companiesList').innerHTML=companies.map(function(c){return '<div class="card"><b>'+esc(c.name)+'</b><br>KBO: '+esc(c.kbo)+' | BTW: '+esc(c.btw||'-')+'<br>'+esc(c.address||'')+'<br>'+esc(c.email||'')+' | '+esc(c.phone||'')+'<br>TEST: '+(c.chiron.test.configured?'مضبوط':'ناقص')+' | Production: '+(c.chiron.production.configured?'مضبوط':'ناقص')+' <button onclick="hello(\''+c.id+'\')">اختبار hello</button> <button onclick="removeItem(\'companies\',\''+c.id+'\')">حذف</button></div>'}).join('')||'لا توجد شركة';
+ $('companiesList').innerHTML=companies.map(function(c){return '<div class="card"><b>'+esc(c.name)+'</b><br>KBO: '+esc(c.kbo)+' | BTW: '+esc(c.btw||'-')+'<br>'+esc(c.address||'')+'<br>'+esc(c.email||'')+' | '+esc(c.phone||'')+'<br>TEST: '+(c.chiron.test.configured?'مضبوط':'ناقص')+' | Production: '+(c.chiron.production.configured?'مضبوط':'ناقص')+' <button onclick="removeItem(\'companies\',\''+c.id+'\')">حذف</button></div>'}).join('')||'لا توجد شركة';
  $('driversList').innerHTML=drivers.map(function(d){return '<div class="card">'+esc(d.name)+' — '+esc(d.card)+' — '+esc(d.phone||'')+' <button onclick="removeItem(\'drivers\',\''+d.id+'\')">حذف</button></div>'}).join('')||'لا يوجد سائقون';
  $('vehiclesList').innerHTML=vehicles.map(function(v){return '<div class="card">'+esc(v.brand||'')+' '+esc(v.model||'')+' — '+esc(v.plate)+' <button onclick="removeItem(\'vehicles\',\''+v.id+'\')">حذف</button></div>'}).join('')||'لا توجد مركبات';
  $('customersList').innerHTML=customers.map(function(c){return '<div class="card">'+esc(c.name)+' — '+esc(c.phone||'')+' <button onclick="removeItem(\'customers\',\''+c.id+'\')">حذف</button></div>'}).join('')||'لا يوجد زبائن';
  $('tripCompany').innerHTML=companies.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
+ $('testCompany').innerHTML=companies.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
+ $('prodCompany').innerHTML=companies.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
  $('tripsList').innerHTML=trips.map(function(t){var b='';if(t.status==='BOOKED')b='<button onclick="startTrip(\''+t.id+'\')">START / vertrek</button>';if(t.status==='STARTED')b='<button onclick="stopTrip(\''+t.id+'\')">STOP / aankomst</button>';return '<div class="card"><b>'+esc(t.tripNumber)+'</b> — '+esc(t.environment||'test')+' — '+esc(t.status)+'<br>'+esc(t.plate)+' / '+esc(t.driverCard)+'<br>'+b+'</div>'}).join('')||'لا توجد رحلات';
  $('invoicesList').innerHTML=invoices.map(function(i){return '<div class="card"><b>'+esc(i.tripNumber)+'</b> — € '+esc(i.price)+' — '+esc(i.status)+' <button onclick=\'printInvoice('+JSON.stringify(JSON.stringify(i))+')\'>طباعة 80mm</button> '+(i.status==='UNPAID'?'<button onclick="markPaid(\''+i.id+'\')">تحديد كمدفوعة</button>':'')+'</div>'}).join('')||'لا توجد فواتير';
  buildReport();
