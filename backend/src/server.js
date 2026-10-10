@@ -160,8 +160,8 @@ app.post('/api/companies', requireAuth, async (req, res) => {
     id: crypto.randomUUID(), name: b.name, kbo: b.kbo, btw: b.btw || '',
     address: b.address || '', email: b.email || '', phone: b.phone || '',
     chiron: {
-      test: { clientId: b.testClientId || '', secret: encryptValue(b.testSecret || '') },
-      production: { clientId: b.productionClientId || '', secret: encryptValue(b.productionSecret || '') }
+      test: { clientId: '', secret: '' },
+      production: { clientId: '', secret: '' }
     },
     createdAt: new Date().toISOString()
   };
@@ -169,6 +169,21 @@ app.post('/api/companies', requireAuth, async (req, res) => {
   addAudit(state, 'create', 'company', company.id);
   await saveState(state);
   res.status(201).json({ id: company.id });
+});
+
+app.put('/api/companies/:id/chiron', requireAuth, async (req, res) => {
+  const state = await getState();
+  const company = state.companies.find(x => x.id === req.params.id);
+  const b = req.body;
+  if (!company) return res.status(404).json({ error: 'الشركة غير موجودة' });
+  if (!['test', 'production'].includes(b.environment)) return res.status(400).json({ error: 'بيئة غير صحيحة' });
+  company.chiron[b.environment] = {
+    clientId: b.clientId || '',
+    secret: b.secret ? encryptValue(b.secret) : company.chiron[b.environment]?.secret || ''
+  };
+  addAudit(state, 'update_credentials', b.environment, company.id);
+  await saveState(state);
+  res.json({ ok: true });
 });
 
 app.post('/api/chiron/:companyId/hello', requireAuth, async (req, res) => {
