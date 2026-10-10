@@ -34,8 +34,8 @@ const ENVIRONMENTS = {
   }
 };
 
-const COLLECTIONS = ['drivers', 'vehicles', 'customers', 'invoices'];
-const READ_COLLECTIONS = ['companies', 'trips', 'messages', 'audit'].concat(COLLECTIONS);
+const COLLECTIONS = ['companies', 'drivers', 'vehicles', 'customers', 'invoices'];
+const READ_COLLECTIONS = ['trips', 'messages', 'audit'].concat(COLLECTIONS);
 
 const blankState = () => ({
   companies: [], drivers: [], vehicles: [], customers: [],
@@ -97,7 +97,7 @@ function addAudit(state, action, type, itemId) {
 
 async function getAccessToken(company, environment) {
   const c = company.chiron?.[environment];
-  if (!c?.clientId || !c?.secret) throw new Error('Client ID أو Client Secret غير موجودين');
+  if (!c?.clientId || !c?.secret) throw new Error('Client ID أو Client Secret غير موجودين لهذه البيئة');
   const basic = Buffer.from(c.clientId + ':' + decryptValue(c.secret)).toString('base64');
   const r = await axios.post(ENVIRONMENTS[environment].oauth, 'grant_type=client_credentials', {
     headers: { Authorization: 'Basic ' + basic, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -157,8 +157,8 @@ app.post('/api/companies', requireAuth, async (req, res) => {
   const b = req.body;
   if (!b.name || !b.kbo) return res.status(400).json({ error: 'اسم الشركة و KBO مطلوبان' });
   const company = {
-    id: crypto.randomUUID(), name: b.name, kbo: b.kbo, address: b.address || '',
-    email: b.email || '', phone: b.phone || '',
+    id: crypto.randomUUID(), name: b.name, kbo: b.kbo, btw: b.btw || '',
+    address: b.address || '', email: b.email || '', phone: b.phone || '',
     chiron: {
       test: { clientId: b.testClientId || '', secret: encryptValue(b.testSecret || '') },
       production: { clientId: b.productionClientId || '', secret: encryptValue(b.productionSecret || '') }
@@ -169,21 +169,6 @@ app.post('/api/companies', requireAuth, async (req, res) => {
   addAudit(state, 'create', 'company', company.id);
   await saveState(state);
   res.status(201).json({ id: company.id });
-});
-
-app.put('/api/companies/:id/chiron', requireAuth, async (req, res) => {
-  const state = await getState();
-  const company = state.companies.find(x => x.id === req.params.id);
-  const b = req.body;
-  if (!company) return res.status(404).json({ error: 'الشركة غير موجودة' });
-  if (!['test', 'production'].includes(b.environment)) return res.status(400).json({ error: 'بيئة غير صحيحة' });
-  company.chiron[b.environment] = {
-    clientId: b.clientId || '',
-    secret: b.secret ? encryptValue(b.secret) : company.chiron[b.environment]?.secret || ''
-  };
-  addAudit(state, 'update_credentials', b.environment, company.id);
-  await saveState(state);
-  res.json({ ok: true });
 });
 
 app.post('/api/chiron/:companyId/hello', requireAuth, async (req, res) => {
@@ -203,7 +188,7 @@ app.post('/api/chiron/:companyId/hello', requireAuth, async (req, res) => {
 
 app.post('/api/:type', requireAuth, async (req, res) => {
   const type = req.params.type;
-  if (!COLLECTIONS.includes(type)) return res.status(404).json({ error: 'Not found' });
+  if (!COLLECTIONS.includes(type) || type === 'companies') return res.status(404).json({ error: 'Not found' });
   const state = await getState();
   const item = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...req.body };
   state[type].push(item);
@@ -237,8 +222,9 @@ app.delete('/api/:type/:id', requireAuth, async (req, res) => {
 app.post('/api/trips', requireAuth, async (req, res) => {
   const state = await getState();
   const b = req.body;
-  const required = ['companyId', 'tripNumber', 'kbo', 'companyName', 'plate', 'driverCard', 'startLat', 'startLng'];
+  const required = ['companyId', 'environment', 'tripNumber', 'kbo', 'companyName', 'plate', 'driverCard', 'startLat', 'startLng'];
   for (const f of required) if (b[f] === undefined || b[f] === '') return res.status(400).json({ error: 'حقل مطلوب: ' + f });
+  if (!['test', 'production'].includes(b.environment)) return res.status(400).json({ error: 'بيئة غير صحيحة' });
   const trip = { id: crypto.randomUUID(), status: 'BOOKED', createdAt: new Date().toISOString(), ...b };
   state.trips.push(trip);
   addAudit(state, 'create', 'trip', trip.id);
@@ -282,7 +268,7 @@ app.post('/api/trips/:id/:action', requireAuth, async (req, res) => {
     }
 
     const company = state.companies.find(x => x.id === trip.companyId);
-    const environment = req.body.environment || 'test';
+    const environment = trip.environment || 'test';
     const payload = buildChironPayload(trip, status);
     const accessToken = await getAccessToken(company, environment);
     const r = await axios.post(ENVIRONMENTS[environment].trip, payload, {
