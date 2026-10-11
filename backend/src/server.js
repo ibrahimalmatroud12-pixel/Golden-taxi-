@@ -1,316 +1,633 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const axios = require('axios');
-const { Pool } = require('pg');
 require('dotenv').config();
 
+const express = require('express');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
 const app = express();
+
+app.use(express.json({ limit: '1mb' }));
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-change-me';
-const KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || JWT_SECRET).digest();
+const JWT_SECRET = process.env.JWT_SECRET;
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
 
-const DB = process.env.DATABASE_URL ? new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-}) : null;
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET missing in .env');
+  process.exit(1);
+}
 
-const FALLBACK_FILE = path.join(__dirname, 'fallback.json');
+if (!DASHBOARD_PASSWORD) {
+  console.error('DASHBOARD_PASSWORD missing in .env');
+  process.exit(1);
+}
 
-const ENVIRONMENTS = {
-  test: {
-    oauth: 'https://mow-acc.api.vlaanderen.be/oauth/token',
-    trip: 'https://mow-acc.api.vlaanderen.be/chiron/taxirit',
-    hello: 'https://mow-acc.api.vlaanderen.be/chiron/hello'
-  },
-  production: {
-    oauth: 'https://mow.api.vlaanderen.be/oauth/token',
-    trip: 'https://mow.api.vlaanderen.be/chiron/taxirit'
-  }
+const DATA_FILE = path.join(__dirname, 'data.json');
+
+let db = {
+  companies: [],
+  drivers: [],
+  vehicles: [],
+  customers: [],
+  trips: [],
+  invoices: [],
+  messages: []
 };
 
-const COLLECTIONS = ['companies', 'drivers', 'vehicles', 'customers', 'invoices'];
-const READ_COLLECTIONS = ['trips', 'messages', 'audit'].concat(COLLECTIONS);
-
-const blankState = () => ({
-  companies: [], drivers: [], vehicles: [], customers: [],
-  trips: [], invoices: [], messages: [], audit: []
-});
-
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: true }));
-app.use(express.json({ limit: '500kb' }));
-
-function encryptValue(value) {
-  if (!value) return '';
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv);
-  const encrypted = cipher.update(value, 'utf8', 'base64') + cipher.final('base64');
-  return [iv.toString('base64'), cipher.getAuthTag().toString('base64'), encrypted].join('.');
-}
-
-function decryptValue(value) {
-  try {
-    const [iv, tag, encrypted] = value.split('.');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', KEY, Buffer.from(iv, 'base64'));
-    decipher.setAuthTag(Buffer.from(tag, 'base64'));
-    return decipher.update(encrypted, 'base64', 'utf8') + decipher.final('utf8');
-  } catch { return ''; }
-}
-
-async function getState() {
-  if (!DB) {
-    try { return JSON.parse(fs.readFileSync(FALLBACK_FILE, 'utf8')); }
-    catch { return blankState(); }
+function loadDb(){
+  try{
+    if(fs.existsSync(DATA_FILE)){
+      db = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    }
+  }catch(err){
+    console.error('Error loading data.json:', err.message);
   }
-  const result = await DB.query('SELECT data FROM golden_state WHERE id = 1');
-  return result.rows[0]?.data || blankState();
 }
 
-async function saveState(state) {
-  if (!DB) {
-    fs.writeFileSync(FALLBACK_FILE, JSON.stringify(state, null, 2));
-    return;
+function saveDb(){
+  fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+}
+
+loadDb();
+
+function auth(req, res, next){
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+
+  if(!token){
+    return res.status(401).json({ error: 'غير مسجل الدخول' });
   }
-  await DB.query(
-    `INSERT INTO golden_state (id, data) VALUES (1, $1)
-     ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = now()`,
-    [state]
-  );
-}
 
-function requireAuth(req, res, next) {
-  try {
-    req.user = jwt.verify((req.headers.authorization || '').split(' ')[1], JWT_SECRET);
+  try{
+    req.user = jwt.verify(token, JWT_SECRET);
     next();
-  } catch { res.status(401).json({ error: 'Unauthorized' }); }
+  }catch(err){
+    return res.status(401).json({ error: 'جلسة منتهية، سجل الدخول مجددًا' });
+  }
 }
 
-function addAudit(state, action, type, itemId) {
-  state.audit.push({ id: crypto.randomUUID(), action, type, itemId, at: new Date().toISOString() });
+function findCompany(companyId){
+  return db.companies.find(function(c){
+    return c.id === companyId;
+  });
 }
 
-async function getAccessToken(company, environment) {
-  const c = company.chiron?.[environment];
-  if (!c?.clientId || !c?.secret) throw new Error('Client ID أو Client Secret غير موجودين لهذه البيئة');
-  const basic = Buffer.from(c.clientId + ':' + decryptValue(c.secret)).toString('base64');
-  const r = await axios.post(ENVIRONMENTS[environment].oauth, 'grant_type=client_credentials', {
-    headers: { Authorization: 'Basic ' + basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+function getChironConfig(company, environment){
+  if(!company || !company.chiron || !company.chiron[environment]){
+    return null;
+  }
+
+  const config = company.chiron[environment];
+
+  if(!config.clientId || !config.clientSecret){
+    return null;
+  }
+
+  return config;
+}
+
+async function getChironToken(company, environment){
+  const config = getChironConfig(company, environment);
+
+  if(!config){
+    throw new Error('بيانات Chiron غير مكتملة لهذه الشركة');
+  }
+
+  const tokenUrl =
+    environment === 'production'
+      ? 'https://mow.api.vlaanderen.be/oauth/token'
+      : 'https://mow-acc.api.vlaanderen.be/oauth/token';
+
+  const params = new URLSearchParams();
+  params.append('grant_type', 'client_credentials');
+  params.append('client_id', config.clientId);
+  params.append('client_secret', config.clientSecret);
+
+  const response = await axios.post(tokenUrl, params, {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
     timeout: 15000
   });
-  return r.data.access_token;
+
+  return response.data.access_token;
 }
 
-function buildChironPayload(trip, status) {
-  const payload = {
-    taxibedrijf: { aanbieder: { registratie: trip.kbo, naam: trip.companyName } },
-    voertuig: { nummerplaat: trip.plate },
-    uitvoerder: { bestuurderspasnummer: trip.driverCard },
-    vertrektijdstip: trip.startedAt,
-    vertrekpunt: { lengtegraad: Number(trip.startLng), breedtegraad: Number(trip.startLat) }
-  };
-  if (status === 'aankomst') {
-    payload.aankomsttijdstip = trip.endedAt;
-    payload.aankomstpunt = { lengtegraad: Number(trip.endLng), breedtegraad: Number(trip.endLat) };
-    payload.afstand = { waarde: Number(trip.distanceKm) };
-    payload.kostprijs = { waarde: Number(trip.price) };
-  }
-  return { status, ritnummer: trip.tripNumber, rit: payload, broncreatiedatum: new Date().toISOString() };
+function utcIso(date){
+  return new Date(date).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-app.get('/api/health', (req, res) => res.json({ ok: true, database: Boolean(DB) }));
-
-app.post('/api/login', (req, res) => {
-  const password = String(req.body.password || '');
-  const expected = process.env.ADMIN_PASSWORD || '';
-  const hash = process.env.ADMIN_PASSWORD_HASH || '';
-  let ok = false;
-  if (expected && password === expected) ok = true;
-  else if (hash && bcrypt.compareSync(password, hash)) ok = true;
-  if (!ok) return res.status(401).json({ error: 'كلمة المرور غير صحيحة' });
-  res.json({ token: jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' }) });
-});
-
-app.get('/api/:type', requireAuth, async (req, res) => {
-  if (!READ_COLLECTIONS.includes(req.params.type)) return res.status(404).json({ error: 'Not found' });
-  const state = await getState();
-  let items = state[req.params.type];
-  if (req.params.type === 'companies') {
-    items = items.map(c => ({
-      ...c,
-      chiron: {
-        test: { clientId: c.chiron?.test?.clientId || '', configured: Boolean(c.chiron?.test?.secret) },
-        production: { clientId: c.chiron?.production?.clientId || '', configured: Boolean(c.chiron?.production?.secret) }
+function buildStartMessage(trip){
+  return {
+    status: 'vertrek',
+    rit: {
+      ritnummer: trip.tripNumber,
+      taxibedrijf: {
+        aanbieder: {
+          registratie: trip.kbo,
+          naam: trip.companyName
+        }
       }
-    }));
+    },
+    voertuig: {
+      nummerplaat: trip.plate
+    },
+    uitvoerder: {
+      bestuurderspasnummer: trip.driverCard
+    },
+    vertrektijdstip: utcIso(trip.startedAt),
+    vertrekpunt: {
+      lengtegraad: Number(trip.startLng),
+      breedtegraad: Number(trip.startLat)
+    },
+    kostprijs: {
+      waarde: 0
+    },
+    broncreatiedatum: utcIso(new Date())
+  };
+}
+
+function buildStopMessage(trip){
+  return {
+    status: 'aankomst',
+    rit: {
+      ritnummer: trip.tripNumber,
+      taxibedrijf: {
+        aanbieder: {
+          registratie: trip.kbo,
+          naam: trip.companyName
+        }
+      }
+    },
+    voertuig: {
+      nummerplaat: trip.plate
+    },
+    uitvoerder: {
+      bestuurderspasnummer: trip.driverCard
+    },
+    vertrektijdstip: utcIso(trip.startedAt),
+    vertrekpunt: {
+      lengtegraad: Number(trip.startLng),
+      breedtegraad: Number(trip.startLat)
+    },
+    aankomsttijdstip: utcIso(trip.endedAt),
+    aankomstpunt: {
+      lengtegraad: Number(trip.endLng),
+      breedtegraad: Number(trip.endLat)
+    },
+    afstand: {
+      waarde: Number(trip.distanceKm)
+    },
+    kostprijs: {
+      waarde: Number(trip.price)
+    },
+    broncreatiedatum: utcIso(new Date())
+  };
+}
+
+async function sendToChiron(company, environment, message, tripId){
+  let ok = false;
+  let response = null;
+
+  try{
+    const accessToken = await getChironToken(company, environment);
+
+    const apiUrl =
+      environment === 'production'
+        ? 'https://mow.api.vlaanderen.be/chiron/taxirit'
+        : 'https://mow-acc.api.vlaanderen.be/chiron/taxirit';
+
+    const apiResponse = await axios.post(apiUrl, message, {
+      headers: {
+        'Authorization': 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      timeout: 20000
+    });
+
+    ok = true;
+    response = apiResponse.data;
+  }catch(err){
+    response = err.response ? err.response.data : { error: err.message };
   }
-  res.json(items);
+
+  db.messages.push({
+    id: Date.now().toString() + Math.random().toString(16).slice(2),
+    tripId: tripId,
+    environment: environment,
+    status: message.status,
+    ok: ok,
+    date: new Date().toISOString(),
+    response: response
+  });
+
+  saveDb();
+
+  return ok;
+}
+
+app.get('/', function(req, res){
+  res.json({
+    status: 'OK',
+    message: 'Golden Taxi Chiron server is running'
+  });
 });
 
-app.post('/api/companies', requireAuth, async (req, res) => {
-  const state = await getState();
-  const b = req.body;
-  if (!b.name || !b.kbo) return res.status(400).json({ error: 'اسم الشركة و KBO مطلوبان' });
+app.post('/api/login', function(req, res){
+  const password = req.body.password;
+
+  if(!password || password !== DASHBOARD_PASSWORD){
+    return res.status(401).json({ error: 'كلمة المرور غير صحيحة' });
+  }
+
+  const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
+
+  res.json({ token: token });
+});
+
+app.get('/api/companies', auth, function(req, res){
+  res.json(db.companies);
+});
+
+app.post('/api/companies', auth, function(req, res){
+  const { name, kbo, btw, address, email, phone } = req.body;
+
+  if(!name || !kbo){
+    return res.status(400).json({ error: 'اسم الشركة و KBO مطلوبان' });
+  }
+
   const company = {
-    id: crypto.randomUUID(), name: b.name, kbo: b.kbo, btw: b.btw || '',
-    address: b.address || '', email: b.email || '', phone: b.phone || '',
+    id: Date.now().toString(),
+    name: name,
+    kbo: kbo,
+    btw: btw || '',
+    address: address || '',
+    email: email || '',
+    phone: phone || '',
     chiron: {
-      test: { clientId: '', secret: '' },
-      production: { clientId: '', secret: '' }
-    },
+      test: { clientId: '', clientSecret: '', configured: false },
+      production: { clientId: '', clientSecret: '', configured: false }
+    }
+  };
+
+  db.companies.push(company);
+  saveDb();
+
+  res.json(company);
+});
+
+app.delete('/api/companies/:id', auth, function(req, res){
+  db.companies = db.companies.filter(function(c){
+    return c.id !== req.params.id;
+  });
+
+  saveDb();
+  res.json({ ok: true });
+});
+
+app.put('/api/companies/:id/chiron', auth, function(req, res){
+  const company = findCompany(req.params.id);
+
+  if(!company){
+    return res.status(404).json({ error: 'الشركة غير موجودة' });
+  }
+
+  const { environment, clientId, secret } = req.body;
+
+  if(!['test', 'production'].includes(environment)){
+    return res.status(400).json({ error: 'بيئة غير صحيحة' });
+  }
+
+  company.chiron[environment] = {
+    clientId: clientId || '',
+    clientSecret: secret || '',
+    configured: Boolean(clientId && secret)
+  };
+
+  saveDb();
+
+  res.json({ ok: true });
+});
+
+app.post('/api/chiron/:id/hello', auth, async function(req, res){
+  const company = findCompany(req.params.id);
+  const environment = req.body.environment || 'test';
+
+  try{
+    await getChironToken(company, environment);
+    res.json({ ok: true });
+  }catch(err){
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/drivers', auth, function(req, res){
+  res.json(db.drivers);
+});
+
+app.post('/api/drivers', auth, function(req, res){
+  const driver = {
+    id: Date.now().toString(),
+    name: req.body.name || '',
+    card: req.body.card || '',
+    phone: req.body.phone || ''
+  };
+
+  db.drivers.push(driver);
+  saveDb();
+
+  res.json(driver);
+});
+
+app.delete('/api/drivers/:id', auth, function(req, res){
+  db.drivers = db.drivers.filter(function(d){
+    return d.id !== req.params.id;
+  });
+
+  saveDb();
+  res.json({ ok: true });
+});
+
+app.get('/api/vehicles', auth, function(req, res){
+  res.json(db.vehicles);
+});
+
+app.post('/api/vehicles', auth, function(req, res){
+  const vehicle = {
+    id: Date.now().toString(),
+    brand: req.body.brand || '',
+    model: req.body.model || '',
+    plate: req.body.plate || ''
+  };
+
+  db.vehicles.push(vehicle);
+  saveDb();
+
+  res.json(vehicle);
+});
+
+app.delete('/api/vehicles/:id', auth, function(req, res){
+  db.vehicles = db.vehicles.filter(function(v){
+    return v.id !== req.params.id;
+  });
+
+  saveDb();
+  res.json({ ok: true });
+});
+
+app.get('/api/customers', auth, function(req, res){
+  res.json(db.customers);
+});
+
+app.post('/api/customers', auth, function(req, res){
+  const customer = {
+    id: Date.now().toString(),
+    name: req.body.name || '',
+    phone: req.body.phone || ''
+  };
+
+  db.customers.push(customer);
+  saveDb();
+
+  res.json(customer);
+});
+
+app.delete('/api/customers/:id', auth, function(req, res){
+  db.customers = db.customers.filter(function(c){
+    return c.id !== req.params.id;
+  });
+
+  saveDb();
+  res.json({ ok: true });
+});
+
+app.get('/api/trips', auth, function(req, res){
+  res.json(db.trips);
+});
+
+app.post('/api/trips', auth, function(req, res){
+  const {
+    companyId,
+    environment,
+    tripNumber,
+    kbo,
+    companyName,
+    plate,
+    driverCard,
+    passenger,
+    payment,
+    startAddress,
+    startLat,
+    startLng
+  } = req.body;
+
+  if(!companyId){
+    return res.status(400).json({ error: 'اختر الشركة' });
+  }
+
+  if(!['test', 'production'].includes(environment)){
+    return res.status(400).json({ error: 'اختر البيئة: TEST أو Production' });
+  }
+
+  if(!tripNumber){
+    return res.status(400).json({ error: 'أدخل رقم الرحلة' });
+  }
+
+  if(!plate){
+    return res.status(400).json({ error: 'أدخل رقم لوحة السيارة' });
+  }
+
+  if(!driverCard){
+    return res.status(400).json({ error: 'أدخل رقم بطاقة السائق' });
+  }
+
+  if(isNaN(Number(startLat)) || isNaN(Number(startLng))){
+    return res.status(400).json({ error: 'إحداثيات البداية مطلوبة' });
+  }
+
+  const trip = {
+    id: Date.now().toString(),
+    companyId: companyId,
+    environment: environment,
+    tripNumber: tripNumber,
+    kbo: kbo || '',
+    companyName: companyName || '',
+    plate: plate,
+    driverCard: driverCard,
+    passenger: passenger || '',
+    payment: payment || '',
+    startAddress: startAddress || '',
+    startLat: Number(startLat),
+    startLng: Number(startLng),
+    endAddress: '',
+    endLat: null,
+    endLng: null,
+    distanceKm: null,
+    price: null,
+    status: 'BOOKED',
+    startedAt: null,
+    endedAt: null,
     createdAt: new Date().toISOString()
   };
-  state.companies.push(company);
-  addAudit(state, 'create', 'company', company.id);
-  await saveState(state);
-  res.status(201).json({ id: company.id });
+
+  db.trips.push(trip);
+  saveDb();
+
+  res.json(trip);
 });
 
-app.put('/api/companies/:id/chiron', requireAuth, async (req, res) => {
-  const state = await getState();
-  const company = state.companies.find(x => x.id === req.params.id);
-  const b = req.body;
-  if (!company) return res.status(404).json({ error: 'الشركة غير موجودة' });
-  if (!['test', 'production'].includes(b.environment)) return res.status(400).json({ error: 'بيئة غير صحيحة' });
-  company.chiron[b.environment] = {
-    clientId: b.clientId || '',
-    secret: b.secret ? encryptValue(b.secret) : company.chiron[b.environment]?.secret || ''
-  };
-  addAudit(state, 'update_credentials', b.environment, company.id);
-  await saveState(state);
-  res.json({ ok: true });
-});
+app.post('/api/trips/:id/start', auth, async function(req, res){
+  const trip = db.trips.find(function(t){
+    return t.id === req.params.id;
+  });
 
-app.post('/api/chiron/:companyId/hello', requireAuth, async (req, res) => {
-  try {
-    const state = await getState();
-    const company = state.companies.find(x => x.id === req.params.companyId);
-    if (!company) return res.status(404).json({ error: 'الشركة غير موجودة' });
-    if ((req.body.environment || 'test') !== 'test') return res.status(400).json({ error: 'hello متاح في TEST فقط' });
-    const c = company.chiron.test;
-    const basic = Buffer.from(c.clientId + ':' + decryptValue(c.secret)).toString('base64');
-    const r = await axios.get(ENVIRONMENTS.test.hello, { headers: { Authorization: 'Basic ' + basic }, timeout: 15000 });
-    res.json({ ok: true, response: r.data });
-  } catch (e) {
-    res.status(400).json({ ok: false, error: e.response?.data || e.message });
+  if(!trip){
+    return res.status(404).json({ error: 'الرحلة غير موجودة' });
   }
-});
 
-app.post('/api/:type', requireAuth, async (req, res) => {
-  const type = req.params.type;
-  if (!COLLECTIONS.includes(type) || type === 'companies') return res.status(404).json({ error: 'Not found' });
-  const state = await getState();
-  const item = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...req.body };
-  state[type].push(item);
-  addAudit(state, 'create', type, item.id);
-  await saveState(state);
-  res.status(201).json(item);
-});
+  if(trip.status !== 'BOOKED'){
+    return res.status(400).json({ error: 'الرحلة بدأت مسبقًا' });
+  }
 
-app.put('/api/:type/:id', requireAuth, async (req, res) => {
-  const type = req.params.type;
-  if (!COLLECTIONS.includes(type)) return res.status(404).json({ error: 'Not found' });
-  const state = await getState();
-  const item = state[type].find(x => x.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'غير موجود' });
-  Object.assign(item, req.body, { id: item.id });
-  addAudit(state, 'update', type, item.id);
-  await saveState(state);
-  res.json(item);
-});
+  const company = findCompany(trip.companyId);
 
-app.delete('/api/:type/:id', requireAuth, async (req, res) => {
-  const type = req.params.type;
-  if (!COLLECTIONS.includes(type)) return res.status(404).json({ error: 'Not found' });
-  const state = await getState();
-  state[type] = state[type].filter(x => x.id !== req.params.id);
-  addAudit(state, 'delete', type, req.params.id);
-  await saveState(state);
-  res.json({ ok: true });
-});
+  if(!company){
+    return res.status(400).json({ error: 'الشركة غير موجودة' });
+  }
 
-app.post('/api/trips', requireAuth, async (req, res) => {
-  const state = await getState();
-  const b = req.body;
-  const required = ['companyId', 'environment', 'tripNumber', 'kbo', 'companyName', 'plate', 'driverCard', 'startLat', 'startLng'];
-  for (const f of required) if (b[f] === undefined || b[f] === '') return res.status(400).json({ error: 'حقل مطلوب: ' + f });
-  if (!['test', 'production'].includes(b.environment)) return res.status(400).json({ error: 'بيئة غير صحيحة' });
-  const trip = { id: crypto.randomUUID(), status: 'BOOKED', createdAt: new Date().toISOString(), ...b };
-  state.trips.push(trip);
-  addAudit(state, 'create', 'trip', trip.id);
-  await saveState(state);
-  res.status(201).json(trip);
-});
+  trip.startedAt = new Date().toISOString();
+  trip.status = 'STARTED';
 
-app.post('/api/trips/:id/:action', requireAuth, async (req, res) => {
-  try {
-    const state = await getState();
-    const trip = state.trips.find(x => x.id === req.params.id);
-    const action = req.params.action;
-    if (!trip) return res.status(404).json({ error: 'الرحلة غير موجودة' });
-    if (!['start', 'stop', 'cancel'].includes(action)) return res.status(404).json({ error: 'Not found' });
+  const message = buildStartMessage(trip);
+  const ok = await sendToChiron(company, trip.environment, message, trip.id);
 
-    if (action === 'cancel') {
-      if (['STARTED', 'COMPLETED'].includes(trip.status)) return res.status(400).json({ error: 'لا يمكن إلغاء رحلة بدأت' });
-      trip.status = req.body.reason === 'NO_SHOW' ? 'NO_SHOW' : 'CANCELLED';
-      trip.cancelReason = req.body.reason || 'OTHER';
-      await saveState(state);
-      return res.json(trip);
-    }
+  saveDb();
 
-    const status = action === 'start' ? 'vertrek' : 'aankomst';
-    if (action === 'start' && trip.status !== 'BOOKED') return res.status(400).json({ error: 'الرحلة ليست جاهزة للبدء' });
-    if (action === 'stop' && trip.status !== 'STARTED') return res.status(400).json({ error: 'يجب إرسال START أولاً' });
-
-    if (action === 'start') {
-      trip.startedAt = req.body.startedAt || new Date().toISOString();
-      trip.startLat = req.body.startLat ?? trip.startLat;
-      trip.startLng = req.body.startLng ?? trip.startLng;
-    } else {
-      trip.endedAt = req.body.endedAt || new Date().toISOString();
-      trip.endLat = req.body.endLat;
-      trip.endLng = req.body.endLng;
-      trip.distanceKm = req.body.distanceKm;
-      trip.price = req.body.price;
-      for (const f of ['endLat', 'endLng', 'distanceKm', 'price']) {
-        if (trip[f] === undefined || trip[f] === '') return res.status(400).json({ error: 'حقل وصول مطلوب: ' + f });
-      }
-    }
-
-    const company = state.companies.find(x => x.id === trip.companyId);
-    const environment = trip.environment || 'test';
-    const payload = buildChironPayload(trip, status);
-    const accessToken = await getAccessToken(company, environment);
-    const r = await axios.post(ENVIRONMENTS[environment].trip, payload, {
-      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, timeout: 20000
+  if(!ok){
+    return res.status(400).json({
+      ok: false,
+      error: 'فشل إرسال START إلى Chiron',
+      details: db.messages[db.messages.length - 1].response
     });
-    const message = {
-      id: crypto.randomUUID(), tripId: trip.id, environment, status, request: payload,
-      response: r.data, at: new Date().toISOString(), ok: !r.data?.fouten?.length
-    };
-    state.messages.push(message);
-    trip.status = action === 'start' ? 'STARTED' : 'COMPLETED';
-    addAudit(state, 'chiron_' + status, 'trip', trip.id);
-    await saveState(state);
-    res.json({ ok: message.ok, chiron: r.data, trip });
-  } catch (e) {
-    res.status(400).json({ ok: false, error: e.response?.data || e.message });
   }
+
+  res.json({ ok: true, trip: trip });
 });
 
-app.use(express.static(path.join(__dirname, '../../frontend')));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../../frontend/index.html')));
+app.post('/api/trips/:id/stop', auth, async function(req, res){
+  const trip = db.trips.find(function(t){
+    return t.id === req.params.id;
+  });
 
-(async () => {
-  if (DB) {
-    await DB.query(fs.readFileSync(path.join(__dirname, '../migrations/001_init.sql'), 'utf8'));
-  } else if (!fs.existsSync(FALLBACK_FILE)) {
-    fs.writeFileSync(FALLBACK_FILE, JSON.stringify(blankState(), null, 2));
+  if(!trip){
+    return res.status(404).json({ error: 'الرحلة غير موجودة' });
   }
-  app.listen(PORT, () => console.log('Golden Taxi Chiron running on port ' + PORT));
-})().catch(e => { console.error(e); process.exit(1); });
+
+  if(trip.status !== 'STARTED'){
+    return res.status(400).json({ error: 'الرحلة لم تبدأ أو انتهت مسبقًا' });
+  }
+
+  const endLat = Number(req.body.endLat);
+  const endLng = Number(req.body.endLng);
+  const distanceKm = Number(req.body.distanceKm);
+  const price = Number(req.body.price);
+
+  if(isNaN(endLat) || isNaN(endLng)){
+    return res.status(400).json({ error: 'إحداثيات الوصول مطلوبة' });
+  }
+
+  if(isNaN(distanceKm) || distanceKm <= 0){
+    return res.status(400).json({ error: 'المسافة غير صحيحة' });
+  }
+
+  if(isNaN(price) || price < 0){
+    return res.status(400).json({ error: 'السعر غير صحيح' });
+  }
+
+  const company = findCompany(trip.companyId);
+
+  if(!company){
+    return res.status(400).json({ error: 'الشركة غير موجودة' });
+  }
+
+  trip.endLat = endLat;
+  trip.endLng = endLng;
+  trip.distanceKm = distanceKm;
+  trip.price = price;
+  trip.endedAt = new Date().toISOString();
+  trip.status = 'COMPLETED';
+
+  const message = buildStopMessage(trip);
+  const ok = await sendToChiron(company, trip.environment, message, trip.id);
+
+  saveDb();
+
+  if(!ok){
+    return res.status(400).json({
+      ok: false,
+      error: 'فشل إرسال STOP إلى Chiron',
+      details: db.messages[db.messages.length - 1].response
+    });
+  }
+
+  res.json({ ok: true, trip: trip });
+});
+
+app.get('/api/invoices', auth, function(req, res){
+  res.json(db.invoices);
+});
+
+app.post('/api/invoices', auth, function(req, res){
+  const invoice = req.body;
+
+  if(!invoice.tripId){
+    return res.status(400).json({ error: 'tripId مطلوب' });
+  }
+
+  invoice.id = Date.now().toString();
+  invoice.date = invoice.date || new Date().toISOString();
+
+  db.invoices.push(invoice);
+  saveDb();
+
+  res.json(invoice);
+});
+
+app.put('/api/invoices/:id', auth, function(req, res){
+  const invoice = db.invoices.find(function(i){
+    return i.id === req.params.id;
+  });
+
+  if(!invoice){
+    return res.status(404).json({ error: 'الفاتورة غير موجودة' });
+  }
+
+  if(req.body.status){
+    invoice.status = req.body.status;
+  }
+
+  saveDb();
+
+  res.json(invoice);
+});
+
+app.get('/api/messages', auth, function(req, res){
+  res.json(db.messages);
+});
+
+app.use(function(req, res){
+  res.status(404).json({ error: 'المسار غير موجود' });
+});
+
+app.listen(PORT, function(){
+  console.log('Golden Taxi Chiron server running on port ' + PORT);
+});
