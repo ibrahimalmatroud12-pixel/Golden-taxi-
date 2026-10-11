@@ -19,7 +19,7 @@ app.use(cors({
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
-const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
+const DASHBOARD_PASSWORD = process.env.ADMIN_PASSWORD;
 
 if (!JWT_SECRET) {
   console.error('JWT_SECRET missing in .env');
@@ -27,11 +27,11 @@ if (!JWT_SECRET) {
 }
 
 if (!DASHBOARD_PASSWORD) {
-  console.error('DASHBOARD_PASSWORD missing in .env');
+  console.error('ADMIN_PASSWORD missing in .env');
   process.exit(1);
 }
 
-const DATA_FILE = path.join(__dirname, 'data.json');
+const DATA_FILE = path.join(__dirname, '..', 'data.json');
 
 let db = {
   companies: [],
@@ -54,7 +54,11 @@ function loadDb(){
 }
 
 function saveDb(){
-  fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+  try{
+    fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+  }catch(err){
+    console.error('Error saving data.json:', err.message);
+  }
 }
 
 loadDb();
@@ -629,5 +633,5 @@ app.use(function(req, res){
 });
 
 app.listen(PORT, function(){
-  console.log('Golden Taxi Chiron server running on port ' + PORT);
+  console.log('Golden Taxi Chiron running on port ' + PORT);
 });
