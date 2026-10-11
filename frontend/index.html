@@ -152,7 +152,7 @@ body.invoicePrint #printArea{width:74mm;page-size:auto;margin:10mm}
 <div class="card">
 <h3>نقطة البداية</h3>
 
-<input id="tripStartAddress" placeholder="اكتب عنوان البداية">
+<input id="tripStartAddress" placeholder="عنوان البداية (اختياري)">
 <button onclick="geocodeAddress('tripStartAddress','tripStartLat','tripStartLng')">
 تحديد الإحداثيات من العنوان
 </button>
@@ -163,6 +163,12 @@ body.invoicePrint #printArea{width:74mm;page-size:auto;margin:10mm}
 <button onclick="useMyLocation()">
 استخدام موقعي الحالي كنقطة بداية
 </button>
+</div>
+
+<div class="card">
+<h3>نقطة الوصول</h3>
+<input id="tripEndAddress" placeholder="عنوان الوصول (اختياري)">
+<p class="small">عند الضغط على STOP aankomst سيتم تحويل هذا العنوان إلى إحداثيات تلقائيًا. إذا تركته فارغًا ستدخل الإحداثيات يدويًا.</p>
 </div>
 
 <button onclick="createTrip()">إنشاء رحلة</button>
@@ -453,28 +459,32 @@ return {lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)};
 async function stopTrip(tripId){
 var t = trips.find(function(x){return x.id === tripId});
 
-var endAddress = prompt('اكتب عنوان الوصول، أو اتركه فارغًا لإدخال الإحداثيات يدويًا:');
+var endAddress = tripEndAddress.value.trim();
 var endLat, endLng;
 
-if(endAddress && endAddress.trim()){
-var coords = await geocodeSingle(endAddress.trim());
+if(endAddress){
+var coords = await geocodeSingle(endAddress);
 
 if(!coords){
-alert('لم يتم العثور على العنوان');
-return;
-}
-
+alert('لم يتم العثور على العنوان، أدخل الإحداثيات يدويًا');
+var lat1 = prompt('Aankomst latitude:', '');
+var lng1 = prompt('Aankomst longitude:', '');
+endLat = parseFloat(lat1);
+endLng = parseFloat(lng1);
+}else{
 endLat = coords.lat;
 endLng = coords.lng;
+alert('تم تحديد إحداثيات الوصول من العنوان');
+}
 }else{
-var lat = prompt('Aankomst latitude:');
-var lng = prompt('Aankomst longitude:');
-endLat = parseFloat(lat);
-endLng = parseFloat(lng);
+var lat2 = prompt('Aankomst latitude:', '');
+var lng2 = prompt('Aankomst longitude:', '');
+endLat = parseFloat(lat2);
+endLng = parseFloat(lng2);
 }
 
-var km = prompt('المسافة بالكيلومتر:');
-var price = prompt('السعر باليورو:');
+var km = prompt('المسافة بالكيلومتر:', '');
+var price = prompt('السعر باليورو:', '');
 
 if(isNaN(endLat) || isNaN(endLng)){
 alert('إحداثيات الوصول غير صحيحة');
