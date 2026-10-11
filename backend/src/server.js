@@ -31,6 +31,7 @@ if (!DASHBOARD_PASSWORD) {
   process.exit(1);
 }
 
+const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
 const DATA_FILE = path.join(__dirname, '..', 'data.json');
 
 let db = {
@@ -239,7 +240,13 @@ async function sendToChiron(company, environment, message, tripId){
   return ok;
 }
 
+app.use(express.static(FRONTEND_DIR));
+
 app.get('/', function(req, res){
+  res.sendFile(path.join(FRONTEND_DIR, 'index.html'));
+});
+
+app.get('/api-status', function(req, res){
   res.json({
     status: 'OK',
     message: 'Golden Taxi Chiron server is running'
