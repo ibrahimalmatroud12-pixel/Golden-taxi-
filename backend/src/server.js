@@ -31,8 +31,8 @@ if (!DASHBOARD_PASSWORD) {
   process.exit(1);
 }
 
-const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
-const DATA_FILE = path.join(__dirname, '..', 'data.json');
+const FRONTEND_DIR = path.join(process.cwd(), 'frontend');
+const DATA_FILE = path.join(process.cwd(), 'data.json');
 
 let db = {
   companies: [],
