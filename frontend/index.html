@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
@@ -35,36 +35,42 @@ th{background:#f0f0f0}
 #printArea .center{text-align:center}
 #printArea .big{font-size:16px;font-weight:bold}
 @media print{
- body *{visibility:hidden}
- #printArea,#printArea *{visibility:visible}
- #printArea{position:absolute;right:0;top:0;width:100%;padding:10px}
- body.invoicePrint #printArea{width:74mm}
- @page{size:auto;margin:10mm}
+body{visibility:hidden}
+#printArea,#printArea *{visibility:visible}
+#printArea{position:absolute;right:0;top:0;width:100%;padding:10px}
+body.invoicePrint #printArea{width:74mm;page-size:auto;margin:10mm}
 }
 </style>
 </head>
 <body>
-<header><b>Golden Taxi — Chiron</b><button onclick="logout()">خروج</button></header>
+
+<header>
+<b>Golden Taxi Chiron</b>
+<button onclick="logout()">خروج</button>
+</header>
+
 <main>
+
 <div id="login" class="card">
-<h2>دخول الإدارة</h2>
+<h2>تسجيل الدخول</h2>
 <input id="pw" type="password" placeholder="كلمة المرور">
 <button onclick="login()">دخول</button>
-<p id="loginMsg"></p>
+<p id="loginMsg" class="small"></p>
 </div>
 
 <div id="app" class="hidden">
+
 <div class="nav">
 <button onclick="showTab('companies')">الشركات</button>
-<button onclick="showTab('testcreds')">بيانات TEST</button>
-<button onclick="showTab('prodcreds')">بيانات Production</button>
+<button onclick="showTab('testcreds')">TEST</button>
+<button onclick="showTab('prodcreds')">Production</button>
 <button onclick="showTab('drivers')">السائقون</button>
-<button onclick="showTab('vehicles')">المركبات</button>
-<button onclick="showTab('customers')">الزبائن</button>
+<button onclick="showTab('vehicles')">السيارات</button>
+<button onclick="showTab('customers')">العملاء</button>
 <button onclick="showTab('trips')">الرحلات</button>
 <button onclick="showTab('invoices')">الفواتير</button>
 <button onclick="showTab('report')">التقرير</button>
-<button onclick="showTab('acceptance')">تقرير القبول</button>
+<button onclick="showTab('acceptance')">Acceptance</button>
 <button onclick="showTab('messages')">رسائل Chiron</button>
 </div>
 
@@ -72,28 +78,28 @@ th{background:#f0f0f0}
 <h2>الشركات</h2>
 <input id="cname" placeholder="اسم الشركة">
 <input id="ckbo" placeholder="KBO">
-<input id="cbtw" placeholder="BTW رقم مثل BE1010201451">
+<input id="cbtw" placeholder="BTW مثال: BE1010201451">
 <input id="caddress" placeholder="العنوان">
-<input id="cemail" placeholder="البريد">
+<input id="cemail" placeholder="البريد الإلكتروني">
 <input id="cphone" placeholder="الهاتف">
-<button onclick="addCompany()">حفظ الشركة</button>
+<button onclick="addCompany()">إضافة شركة</button>
 <div id="companiesList"></div>
 </div>
 
 <div id="tab-testcreds" class="card hidden">
 <h2>بيانات Chiron TEST</h2>
-<p class="small">تُستخدم للرحلات التجريبية واختبار hello.</p>
+<p class="small">اختبر الاتصال عبر hello قبل إرسال رحلات TEST.</p>
 <select id="testCompany"></select>
 <input id="testClientId" placeholder="TEST Client ID">
 <input id="testClientSecret" type="password" placeholder="TEST Client Secret">
 <button onclick="saveCreds('test')">حفظ بيانات TEST</button>
-<button onclick="hello($('testCompany').value)">اختبار hello</button>
+<button onclick="hello('testCompany').value">اختبار hello</button>
 <p id="testMsg" class="small"></p>
 </div>
 
 <div id="tab-prodcreds" class="card hidden">
 <h2>بيانات Chiron Production</h2>
-<p class="small">لا تدخلها إلا بعد نجاح 5 رحلات TEST و10 رسائل.</p>
+<p class="small">لا تستخدم Production قبل نجاح 5 رحلات TEST.</p>
 <select id="prodCompany"></select>
 <input id="prodClientId" placeholder="Production Client ID">
 <input id="prodClientSecret" type="password" placeholder="Production Client Secret">
@@ -106,42 +112,61 @@ th{background:#f0f0f0}
 <input id="dname" placeholder="اسم السائق">
 <input id="dcard" placeholder="رقم بطاقة السائق">
 <input id="dphone" placeholder="الهاتف">
-<button onclick="addItem('drivers',{name:$('dname').value,card:$('dcard').value,phone:$('dphone').value})">حفظ السائق</button>
+<button onclick="addItem('drivers',{name:dname.value,card:dcard.value,phone:dphone.value})">إضافة</button>
 <div id="driversList"></div>
 </div>
 
 <div id="tab-vehicles" class="card hidden">
-<h2>المركبات</h2>
-<input id="vbrand" placeholder="الماركة مثل TESLA">
-<input id="vmodel" placeholder="الموديل مثل TESLA MODEL Y">
+<h2>السيارات</h2>
+<input id="vbrand" placeholder="الماركة مثال: TESLA">
+<input id="vmodel" placeholder="الموديل مثال: TESLA MODEL Y">
 <input id="vplate" placeholder="رقم اللوحة">
-<button onclick="addItem('vehicles',{brand:$('vbrand').value,model:$('vmodel').value,plate:$('vplate').value})">حفظ المركبة</button>
+<button onclick="addItem('vehicles',{brand:vbrand.value,model:vmodel.value,plate:vplate.value})">إضافة</button>
 <div id="vehiclesList"></div>
 </div>
 
 <div id="tab-customers" class="card hidden">
-<h2>الزبائن</h2>
-<input id="cuName" placeholder="اسم الزبون">
+<h2>العملاء</h2>
+<input id="cuName" placeholder="اسم العميل">
 <input id="cuPhone" placeholder="الهاتف">
-<button onclick="addItem('customers',{name:$('cuName').value,phone:$('cuPhone').value})">حفظ الزبون</button>
+<button onclick="addItem('customers',{name:cuName.value,phone:cuPhone.value})">إضافة</button>
 <div id="customersList"></div>
 </div>
 
 <div id="tab-trips" class="card hidden">
-<h2>رحلة جديدة</h2>
+<h2>الرحلات</h2>
+
 <select id="tripCompany"></select>
+
 <select id="tripEnv">
-<option value="test">TEST — رحلات تجريبية</option>
-<option value="production">PRODUCTION — رحلات حقيقية</option>
+<option value="test">TEST</option>
+<option value="production">PRODUCTION</option>
 </select>
+
 <input id="tripNumber" placeholder="رقم الرحلة">
-<input id="tripPlate" placeholder="رقم اللوحة">
+<input id="tripPlate" placeholder="رقم لوحة السيارة">
 <input id="tripDriver" placeholder="رقم بطاقة السائق">
 <input id="tripPassenger" placeholder="اسم الراكب">
 <input id="tripPayment" placeholder="طريقة الدفع: card / cash">
+
+<div class="card">
+<h3>نقطة البداية</h3>
+
+<input id="tripStartAddress" placeholder="اكتب عنوان البداية">
+<button onclick="geocodeAddress('tripStartAddress','tripStartLat','tripStartLng')">
+تحديد الإحداثيات من العنوان
+</button>
+
 <input id="tripStartLat" placeholder="Start latitude">
 <input id="tripStartLng" placeholder="Start longitude">
+
+<button onclick="useMyLocation()">
+استخدام موقعي الحالي كنقطة بداية
+</button>
+</div>
+
 <button onclick="createTrip()">إنشاء رحلة</button>
+
 <div id="tripsList"></div>
 </div>
 
@@ -151,15 +176,15 @@ th{background:#f0f0f0}
 </div>
 
 <div id="tab-report" class="card hidden">
-<h2>تقرير الرحلات</h2>
+<h2>التقرير</h2>
 <div id="reportBox"></div>
 <button onclick="exportCSV()">تصدير CSV</button>
 </div>
 
 <div id="tab-acceptance" class="card hidden">
 <h2>Chiron Acceptatietest Rapport</h2>
-<p class="small">يجب أن تكون هناك 5 رحلات TEST مكتملة و10 رسائل ناجحة.</p>
-<button onclick="buildAcceptance()">توليد تقرير القبول</button>
+<p class="small">مطلوب 5 رحلات TEST، أي 10 رسائل: 5 START و5 STOP.</p>
+<button onclick="buildAcceptance()">إنشاء التقرير</button>
 <button onclick="printAcceptance()">طباعة التقرير</button>
 <div id="acceptanceBox"></div>
 </div>
@@ -168,85 +193,677 @@ th{background:#f0f0f0}
 <h2>رسائل Chiron</h2>
 <div id="messagesList"></div>
 </div>
+
 </div>
+
 </main>
 
 <div id="printArea" class="hidden"></div>
 
 <script>
-var token=localStorage.getItem('golden'),companies=[],trips=[],drivers=[],vehicles=[],customers=[],invoices=[],messages=[];
-function $(id){return document.getElementById(id)}
-function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-async function api(u,o){o=o||{};o.headers=o.headers||{};o.headers['Content-Type']='application/json';if(token)o.headers['Authorization']='Bearer '+token;var r=await fetch(u,o);var d=await r.json();if(r.status===401)logout();return d}
-function showTab(t){['companies','testcreds','prodcreds','drivers','vehicles','customers','trips','invoices','report','acceptance','messages'].forEach(function(x){$('tab-'+x).classList.toggle('hidden',x!==t)})}
-function show(){if(token){$('login').classList.add('hidden');$('app').classList.remove('hidden');showTab('companies');load()}}
-async function login(){var d=await api('/api/login',{method:'POST',body:JSON.stringify({password:$('pw').value})});if(d.token){token=d.token;localStorage.setItem('golden',token);show()}else{$('loginMsg').textContent=d.error||'خطأ'}}
-function logout(){localStorage.removeItem('golden');location.reload()}
-async function addCompany(){var d=await api('/api/companies',{method:'POST',body:JSON.stringify({name:$('cname').value,kbo:$('ckbo').value,btw:$('cbtw').value,address:$('caddress').value,email:$('cemail').value,phone:$('cphone').value})});if(d.error)alert(d.error);else load()}
-async function hello(id){if(!id){alert('اختر شركة أولاً');return}var d=await api('/api/chiron/'+id+'/hello',{method:'POST',body:JSON.stringify({environment:'test'})});alert(d.ok?'نجح الاتصال':'فشل: '+JSON.stringify(d.error));load()}
+var token = localStorage.getItem('golden');
+var companies = [], trips = [], drivers = [], vehicles = [], customers = [], invoices = [], messages = [];
+
+function id(x){return document.getElementById(x)}
+function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+
+async function api(u,o){
+o = o || {};
+o.headers = o.headers || {};
+o.headers['Content-Type'] = 'application/json';
+if(token) o.headers['Authorization'] = 'Bearer ' + token;
+var r = await fetch(u,o);
+var d = await r.json();
+if(r.status === 401) logout();
+return d;
+}
+
+function showTab(t){
+['companies','testcreds','prodcreds','drivers','vehicles','customers','trips','invoices','report','acceptance','messages'].forEach(function(x){
+id('tab-' + x).classList.toggle('hidden', x !== t);
+});
+}
+
+function show(){
+if(!token){
+id('login').classList.remove('hidden');
+id('app').classList.add('hidden');
+return;
+}
+id('login').classList.add('hidden');
+id('app').classList.remove('hidden');
+showTab('companies');
+load();
+}
+
+async function login(){
+var d = await api('/api/login',{
+method:'POST',
+body:JSON.stringify({password:pw.value})
+});
+if(d.token){
+token = d.token;
+localStorage.setItem('golden',token);
+show();
+}else{
+loginMsg.textContent = d.error || 'خطأ في الدخول';
+}
+}
+
+function logout(){
+localStorage.removeItem('golden');
+location.reload();
+}
+
+async function addCompany(){
+var d = await api('/api/companies',{
+method:'POST',
+body:JSON.stringify({
+name:cname.value,
+kbo:ckbo.value,
+btw:cbtw.value,
+address:caddress.value,
+email:cemail.value,
+phone:cphone.value
+})
+});
+if(d.error) alert(d.error);
+else load();
+}
+
+async function hello(companySelectId){
+var companyId = id(companySelectId).value;
+if(!companyId){
+alert('اختر الشركة أولاً');
+return;
+}
+var d = await api('/api/chiron/' + companyId + '/hello',{
+method:'POST',
+body:JSON.stringify({environment:'test'})
+});
+alert(d.ok ? 'الاتصال ناجح' : JSON.stringify(d.error || d));
+}
+
 async function saveCreds(env){
- var companyId=env==='test'?$('testCompany').value:$('prodCompany').value;
- var clientId=env==='test'?$('testClientId').value:$('prodClientId').value;
- var secret=env==='test'?$('testClientSecret').value:$('prodClientSecret').value;
- var msg=env==='test'?$('testMsg'):$('prodMsg');
- if(!companyId){msg.style.color='#b00';msg.textContent='اختر شركة أولاً';return}
- var d=await api('/api/companies/'+companyId+'/chiron',{method:'PUT',body:JSON.stringify({environment:env,clientId:clientId,secret:secret})});
- if(d.error){msg.style.color='#b00';msg.textContent=d.error}
- else{msg.style.color='green';msg.textContent='تم حفظ بيانات '+env+' بنجاح';if(env==='test')$('testClientSecret').value='';else $('prodClientSecret').value='';load()}
+var companyId = env === 'test' ? testCompany.value : prodCompany.value;
+var clientId = env === 'test' ? testClientId.value : prodClientId.value;
+var secret = env === 'test' ? testClientSecret.value : prodClientSecret.value;
+var msg = env === 'test' ? testMsg : prodMsg;
+
+if(!companyId){
+msg.style.color = '#b00';
+msg.textContent = 'اختر الشركة أولاً';
+return;
 }
-async function addItem(type,body){var d=await api('/api/'+type,{method:'POST',body:JSON.stringify(body)});if(d.error)alert(d.error);else load()}
-async function removeItem(type,id){if(!confirm('حذف؟'))return;await api('/api/'+type+'/'+id,{method:'DELETE'});load()}
-async function createTrip(){var c=companies.find(function(x){return x.id===$('tripCompany').value});var d=await api('/api/trips',{method:'POST',body:JSON.stringify({companyId:$('tripCompany').value,environment:$('tripEnv').value,tripNumber:$('tripNumber').value,kbo:c?c.kbo:'',companyName:c?c.name:'',plate:$('tripPlate').value,driverCard:$('tripDriver').value,passenger:$('tripPassenger').value,payment:$('tripPayment').value,startLat:$('tripStartLat').value,startLng:$('tripStartLng').value})});if(d.error)alert(d.error);else load()}
-async function startTrip(id){var t=trips.find(function(x){return x.id===id});var d=await api('/api/trips/'+id+'/start',{method:'POST',body:JSON.stringify({environment:t.environment||'test'})});alert(d.ok?'START نجح':'خطأ: '+JSON.stringify(d.error));load()}
-async function stopTrip(id){var t=trips.find(function(x){return x.id===id});var lat=prompt('Aankomst latitude'),lng=prompt('Aankomst longitude'),km=prompt('المسافة KM'),price=prompt('السعر الإجمالي EUR');var d=await api('/api/trips/'+id+'/stop',{method:'POST',body:JSON.stringify({environment:t.environment||'test',endLat:lat,endLng:lng,distanceKm:km,price:price})});alert(d.ok?'STOP نجح':'خطأ: '+JSON.stringify(d.error));load()}
-function duration(t){if(!t.startedAt||!t.endedAt)return '-';var m=Math.round((new Date(t.endedAt)-new Date(t.startedAt))/60000);return m+' min'}
-function makeInvoice(t){var total=Number(t.price||0),vat=total*0.06,net=total-vat;var inv={tripId:t.id,tripNumber:t.tripNumber,kbo:t.kbo,companyName:t.companyName,plate:t.plate,driverCard:t.driverCard,passenger:t.passenger,payment:t.payment,startLat:t.startLat,startLng:t.startLng,endLat:t.endLat,endLng:t.endLng,distanceKm:t.distanceKm,startedAt:t.startedAt,endedAt:t.endedAt,price:total,vat:vat.toFixed(2),net:net.toFixed(2),status:'UNPAID',chironStatus:'SUCCESS',date:new Date().toISOString()};api('/api/invoices',{method:'POST',body:JSON.stringify(inv)}).then(function(){load()})}
-async function markPaid(id){await api('/api/invoices/'+id,{method:'PUT',body:JSON.stringify({status:'PAID'})});load()}
-function printInvoice(i){var p=$('printArea');document.body.classList.add('invoicePrint');p.className='invoiceMode';p.innerHTML='<div class="center"><b>'+esc(i.companyName||'GOLDEN TAXI')+'</b></div><div class="center" style="font-size:11px">KBO: '+esc(i.kbo)+'</div><hr><div class="center"><b>VERVOERBEWIJS</b></div><div class="center" style="font-size:11px">Digitaal Ritbeheer — Vervoerplatform</div><div>Nr: '+esc(i.tripNumber)+'</div><div>'+new Date(i.date).toLocaleString()+'</div><hr><div><b>RITREGISTRATIE</b></div><div>Ritnummer: '+esc(i.tripNumber)+'</div><hr><div><b>CHAUFFEUR</b></div><div>Bestuurderskaart: '+esc(i.driverCard)+'</div><hr><div><b>VOERTUIG</b></div><div>Nummerplaat: '+esc(i.plate)+'</div><hr><div><b>RITGEGEVENS</b></div><div>Vertrektijd: '+new Date(i.startedAt).toLocaleTimeString()+'</div><div>Aankomsttijd: '+new Date(i.endedAt).toLocaleTimeString()+'</div><div>Passagier: '+esc(i.passenger||'-')+'</div><div>GPS vertrek: '+esc(i.startLat)+', '+esc(i.startLng)+'</div><div>GPS aankomst: '+esc(i.endLat)+', '+esc(i.endLng)+'</div><div>Afstand: '+esc(i.distanceKm)+' km</div><div>Duur: '+duration(i)+'</div><div>Betaalwijze: '+esc(i.payment||'-')+'</div><hr><div>Bedrag excl. BTW: €'+esc(i.net)+'</div><div>BTW (6%): €'+esc(i.vat)+'</div><div class="big">TOTAAL: €'+Number(i.price).toFixed(2)+'</div><hr><div><b>CHIRON TRANSMISSIE</b></div><div>Status: '+esc(i.chironStatus)+'</div><hr><div class="center" style="font-size:10px">Vervoer onderworpen aan 6% BTW.</div><div class="center" style="font-size:10px">Ritregistratie conform Art. 33 & 34 — Vlaanderen MOW.</div><div class="center" style="font-size:10px">Automatisch gegenereerd.</div>';window.print();setTimeout(function(){document.body.classList.remove('invoicePrint')},500)}
+
+var d = await api('/api/companies/' + companyId + '/chiron',{
+method:'PUT',
+body:JSON.stringify({
+environment:env,
+clientId:clientId,
+secret:secret
+})
+});
+
+if(d.error){
+msg.style.color = '#b00';
+msg.textContent = d.error;
+}else{
+msg.style.color = 'green';
+msg.textContent = 'تم حفظ بيانات ' + env;
+if(env === 'test') testClientSecret.value = '';
+else prodClientSecret.value = '';
+load();
+}
+}
+
+async function addItem(type,body){
+var d = await api('/api/' + type,{
+method:'POST',
+body:JSON.stringify(body)
+});
+if(d.error) alert(d.error);
+else load();
+}
+
+async function removeItem(type,idValue){
+if(!confirm('هل تريد الحذف؟')) return;
+await api('/api/' + type + '/' + idValue,{method:'DELETE'});
+load();
+}
+
+async function geocodeAddress(addressId,latId,lngId){
+var address = id(addressId).value.trim();
+
+if(!address){
+alert('اكتب العنوان أولاً');
+return;
+}
+
+try{
+var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
+
+var response = await fetch(url,{
+headers:{'Accept-Language':'nl'}
+});
+
+var data = await response.json();
+
+if(!data || data.length === 0){
+alert('لم يتم العثور على العنوان. اكتب اسم الشارع والمدينة بشكل أوضح.');
+return;
+}
+
+id(latId).value = parseFloat(data[0].lat).toFixed(6);
+id(lngId).value = parseFloat(data[0].lon).toFixed(6);
+
+alert('تم تحديد الإحداثيات من العنوان');
+
+}catch(err){
+console.error(err);
+alert('تعذر تحديد الإحداثيات من العنوان');
+}
+}
+
+function useMyLocation(){
+if(!navigator.geolocation){
+alert('المتصفح لا يدعم تحديد الموقع');
+return;
+}
+
+navigator.geolocation.getCurrentPosition(
+function(pos){
+tripStartLat.value = pos.coords.latitude.toFixed(6);
+tripStartLng.value = pos.coords.longitude.toFixed(6);
+alert('تم تحديد موقع البداية');
+},
+function(err){
+alert('تعذر تحديد الموقع: ' + err.message);
+},
+{enableHighAccuracy:true,timeout:10000}
+);
+}
+
+async function createTrip(){
+var c = companies.find(function(x){return x.id === tripCompany.value});
+
+var startLat = parseFloat(tripStartLat.value);
+var startLng = parseFloat(tripStartLng.value);
+
+if(!tripNumber.value.trim()){
+alert('أدخل رقم الرحلة');
+return;
+}
+
+if(!tripPlate.value.trim()){
+alert('أدخل رقم لوحة السيارة');
+return;
+}
+
+if(!tripDriver.value.trim()){
+alert('أدخل رقم بطاقة السائق');
+return;
+}
+
+if(isNaN(startLat) || isNaN(startLng)){
+alert('يجب تحديد إحداثيات البداية');
+return;
+}
+
+var d = await api('/api/trips',{
+method:'POST',
+body:JSON.stringify({
+companyId:tripCompany.value,
+environment:tripEnv.value,
+tripNumber:tripNumber.value,
+kbo:c ? c.kbo : '',
+companyName:c ? c.name : '',
+plate:tripPlate.value,
+driverCard:tripDriver.value,
+passenger:tripPassenger.value,
+payment:tripPayment.value,
+startAddress:tripStartAddress.value,
+startLat:startLat,
+startLng:startLng
+})
+});
+
+if(d.error) alert(d.error);
+else load();
+}
+
+async function startTrip(tripId){
+var t = trips.find(function(x){return x.id === tripId});
+var d = await api('/api/trips/' + tripId + '/start',{
+method:'POST',
+body:JSON.stringify({environment:t.environment})
+});
+alert(d.ok ? 'تم إرسال START إلى Chiron' : JSON.stringify(d.error || d));
+load();
+}
+
+async function geocodeSingle(address){
+var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
+var response = await fetch(url,{headers:{'Accept-Language':'nl'}});
+var data = await response.json();
+if(!data || data.length === 0) return null;
+return {lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)};
+}
+
+async function stopTrip(tripId){
+var t = trips.find(function(x){return x.id === tripId});
+
+var endAddress = prompt('اكتب عنوان الوصول، أو اتركه فارغًا لإدخال الإحداثيات يدويًا:');
+var endLat, endLng;
+
+if(endAddress && endAddress.trim()){
+var coords = await geocodeSingle(endAddress.trim());
+
+if(!coords){
+alert('لم يتم العثور على العنوان');
+return;
+}
+
+endLat = coords.lat;
+endLng = coords.lng;
+}else{
+var lat = prompt('Aankomst latitude:');
+var lng = prompt('Aankomst longitude:');
+endLat = parseFloat(lat);
+endLng = parseFloat(lng);
+}
+
+var km = prompt('المسافة بالكيلومتر:');
+var price = prompt('السعر باليورو:');
+
+if(isNaN(endLat) || isNaN(endLng)){
+alert('إحداثيات الوصول غير صحيحة');
+return;
+}
+
+var d = await api('/api/trips/' + tripId + '/stop',{
+method:'POST',
+body:JSON.stringify({
+environment:t.environment,
+endLat:endLat,
+endLng:endLng,
+distanceKm:parseFloat(km),
+price:parseFloat(price)
+})
+});
+
+alert(d.ok ? 'تم إرسال STOP إلى Chiron' : JSON.stringify(d.error || d));
+load();
+}
+
+function duration(t){
+if(!t.startedAt || !t.endedAt) return '-';
+var m = Math.round((new Date(t.endedAt) - new Date(t.startedAt)) / 60000);
+return m + ' min';
+}
+
+async function makeInvoice(t){
+var total = Number(t.price || 0);
+var vat = (total * 0.06).toFixed(2);
+var net = (total - vat).toFixed(2);
+
+var inv = {
+tripId:t.id,
+tripNumber:t.tripNumber,
+kbo:t.kbo,
+companyName:t.companyName,
+plate:t.plate,
+driverCard:t.driverCard,
+passenger:t.passenger,
+payment:t.payment,
+startLat:t.startLat,
+startLng:t.startLng,
+endLat:t.endLat,
+endLng:t.endLng,
+distanceKm:t.distanceKm,
+startedAt:t.startedAt,
+endedAt:t.endedAt,
+price:total,
+vat:vat,
+net:net,
+status:'UNPAID',
+chironStatus:'SUCCESS',
+date:new Date().toISOString()
+};
+
+await api('/api/invoices',{
+method:'POST',
+body:JSON.stringify(inv)
+});
+
+load();
+}
+
+async function markPaid(invoiceId){
+await api('/api/invoices/' + invoiceId,{
+method:'PUT',
+body:JSON.stringify({status:'PAID'})
+});
+load();
+}
+
+function printInvoice(i){
+var p = printArea;
+document.body.classList.add('invoicePrint');
+p.className = 'invoiceMode';
+
+p.innerHTML =
+'<div class="center"><b>' + esc(i.companyName || 'GOLDEN TAXI') + '</b></div>' +
+'<div class="center" style="font-size:11px">KBO: ' + esc(i.kbo) + '</div>' +
+'<hr>' +
+'<div class="center"><b>VERVOERBEWIJS</b></div>' +
+'<div class="center" style="font-size:11px">Digitaal Ritbeheer - Vervoerplatform</div>' +
+'<div>Nr: ' + esc(i.tripNumber) + '</div>' +
+'<div>' + new Date(i.date).toLocaleString() + '</div>' +
+'<hr>' +
+'<b>RITREGISTRATIE</b>' +
+'<div>Ritnummer: ' + esc(i.tripNumber) + '</div>' +
+'<hr>' +
+'<b>CHAUFFEUR</b>' +
+'<div>Bestuurderskaart: ' + esc(i.driverCard) + '</div>' +
+'<hr>' +
+'<b>VOERTUIG</b>' +
+'<div>Nummerplaat: ' + esc(i.plate) + '</div>' +
+'<hr>' +
+'<b>RITGEGEVENS</b>' +
+'<div>Vertrektijd: ' + (i.startedAt ? new Date(i.startedAt).toLocaleTimeString() : '-') + '</div>' +
+'<div>Aankomsttijd: ' + (i.endedAt ? new Date(i.endedAt).toLocaleTimeString() : '-') + '</div>' +
+'<div>Passagier: ' + esc(i.passenger || '-') + '</div>' +
+'<div>GPS vertrek: ' + esc(i.startLat) + ', ' + esc(i.startLng) + '</div>' +
+'<div>GPS aankomst: ' + esc(i.endLat) + ', ' + esc(i.endLng) + '</div>' +
+'<div>Afstand: ' + esc(i.distanceKm) + ' km</div>' +
+'<div>Duur: ' + duration(i) + '</div>' +
+'<div>Betaalwijze: ' + esc(i.payment || '-') + '</div>' +
+'<hr>' +
+'<div>Bedrag excl. BTW: ' + esc(i.net) + '</div>' +
+'<div>BTW 6%: ' + esc(i.vat) + '</div>' +
+'<div class="big">TOTAAL: ' + Number(i.price).toFixed(2) + ' EUR</div>' +
+'<hr>' +
+'<b>CHIRON TRANSMISSIE</b>' +
+'<div>Status: ' + esc(i.chironStatus) + '</div>' +
+'<hr>' +
+'<div class="center" style="font-size:10px">Vervoer onderworpen aan 6% BTW.</div>' +
+'<div class="center" style="font-size:10px">Ritregistratie conform Art. 33 & 34 Vlaanderen MOW.</div>' +
+'<div class="center" style="font-size:10px">Automatisch gegenereerd.</div>';
+
+window.print();
+
+setTimeout(function(){
+document.body.classList.remove('invoicePrint');
+},500);
+}
+
 function buildAcceptance(){
- var c=companies[0];
- if(!c){$('acceptanceBox').innerHTML='<div class="card"><b>لا توجد شركة بعد.</b><br>أضف الشركة من تبويب «الشركات»، ثم أضف بيانات TEST من تبويب «بيانات TEST».</div>';showTab('acceptance');return}
- if(!trips.length){$('acceptanceBox').innerHTML='<div class="card"><b>لا توجد رحلات بعد.</b><br>اذهب إلى تبويب «الرحلات»، اختر TEST، وأنشئ 5 رحلات تجريبية، ثم أرسل START وSTOP لكل رحلة.</div>';showTab('acceptance');return}
- var testTrips=trips.filter(function(t){return (t.environment||'test')==='test'});
- var done=testTrips.filter(function(t){return t.status==='COMPLETED'});
- var testMsgs=messages.filter(function(m){return m.environment==='test'});
- var okMsgs=testMsgs.filter(function(m){return m.ok});
- var failed=testMsgs.length-okMsgs.length;
- var driver=drivers.find(function(d){return d.card===(testTrips[0]||{}).driverCard})||{};
- var vehicle=vehicles.find(function(v){return v.plate===(testTrips[0]||{}).plate})||{};
- var page1='<div style="display:flex;justify-content:space-between;border-bottom:2px solid #ddd;padding-bottom:10px;margin-bottom:20px"><div style="font-weight:bold">Golden</div><h1>Chiron Acceptatietest Rapport</h1></div><div class="row">Brussels Gewest Vlaanderen MOW</div><h2>Bedrijfsinformatie</h2><div class="row"><span>Bedrijfsnaam:</span> '+esc(c.name)+'</div><div class="row"><span>KBO-nummer:</span> '+esc(c.kbo)+'</div><div class="row"><span>BTW-nummer:</span> '+esc(c.btw||'-')+'</div><div class="row"><span>Adres:</span> '+esc(c.address||'-')+'</div><div class="row"><span>E-mail:</span> '+esc(c.email||'-')+'</div><div class="row"><span>Telefoon:</span> '+esc(c.phone||'-')+'</div><h2>Chauffeursinformatie</h2><div class="row"><span>Naam:</span> '+esc(driver.name||'-')+'</div><div class="row"><span>Capaciteitsbewijs:</span> '+esc(driver.card||'-')+'</div><div class="row"><span>Telefoon:</span> '+esc(driver.phone||'-')+'</div><h2>Voertuiginformatie</h2><div class="row"><span>Merk:</span> '+esc(vehicle.brand||'-')+'</div><div class="row"><span>Model:</span> '+esc(vehicle.model||'-')+'</div><div class="row"><span>Nummerplaat:</span> '+esc(vehicle.plate||'-')+'</div><h2>Testinformatie</h2><div class="row"><span>Testdatum:</span> '+new Date().toLocaleString()+'</div><div class="row"><span>Testomgeving:</span> TEST (Acceptatie)</div><h2>Testresultaten Samenvatting</h2><div class="card2"><div>Totaal Berichten</div><div class="number">'+testMsgs.length+'</div></div><h2>Gedetailleerde Testresultaten</h2><div class="card2"><div>Geslaagd</div><div class="number" style="color:green">'+okMsgs.length+'</div></div><div class="card2"><div>Mislukt</div><div class="number" style="color:red">'+failed+'</div></div><div class="footer">Pagina 1 van 3<br>Gegenereerd op: '+new Date().toLocaleDateString()+'</div><div class="page-break"></div>';
- var page2='';
- testTrips.slice(0,4).forEach(function(t,i){
-  var v=messages.find(function(m){return m.tripId===t.id&&m.status==='vertrek'});
-  var a=messages.find(function(m){return m.tripId===t.id&&m.status==='aankomst'});
-  page2+='<h2>Rit '+(i+1)+':</h2><div class="row"><span>Ritnummer:</span> '+esc(t.tripNumber)+'</div><div class="row"><span>Vertrektijd:</span> '+(t.startedAt?new Date(t.startedAt).toLocaleString():'-')+'</div><div class="row"><span>Aankomsttijd:</span> '+(t.endedAt?new Date(t.endedAt).toLocaleString():'-')+'</div><div class="row"><span>Coördinaten vertrek:</span> '+esc(t.startLat)+', '+esc(t.startLng)+'</div><div class="row"><span>Coördinaten aankomst:</span> '+esc(t.endLat||'-')+', '+esc(t.endLng||'-')+'</div><div class="row"><span>VERTREK:</span> <span class="'+(v&&v.ok?'success':'fail')+'">'+(v&&v.ok?'Geslaagd':'Mislukt')+'</span></div><div class="row"><span>AANKOMST:</span> <span class="'+(a&&a.ok?'success':'fail')+'">'+(a&&a.ok?'Geslaagd':'Mislukt')+'</span></div><div class="row"><span>Status:</span> <span class="'+(t.status==='COMPLETED'?'success':'fail')+'">'+(t.status==='COMPLETED'?'Geslaagd':'Niet voltooid')+'</span></div>';
- });
- page2+='<div class="footer">Pagina 2 van 3<br>Gegenereerd op: '+new Date().toLocaleDateString()+'</div><div class="page-break"></div>';
- var t5=testTrips[4]||{};
- var v5=messages.find(function(m){return m.tripId===t5.id&&m.status==='vertrek'});
- var a5=messages.find(function(m){return m.tripId===t5.id&&m.status==='aankomst'});
- var page3='<h2>Rit 5:</h2><div class="row"><span>Ritnummer:</span> '+esc(t5.tripNumber||'-')+'</div><div class="row"><span>Vertrektijd:</span> '+(t5.startedAt?new Date(t5.startedAt).toLocaleString():'-')+'</div><div class="row"><span>Aankomsttijd:</span> '+(t5.endedAt?new Date(t5.endedAt).toLocaleString():'-')+'</div><div class="row"><span>Coördinaten vertrek:</span> '+esc(t5.startLat||'-')+', '+esc(t5.startLng||'-')+'</div><div class="row"><span>Coördinaten aankomst:</span> '+esc(t5.endLat||'-')+', '+esc(t5.endLng||'-')+'</div><div class="row"><span>VERTREK:</span> <span class="'+(v5&&v5.ok?'success':'fail')+'">'+(v5&&v5.ok?'Geslaagd':'Mislukt')+'</span></div><div class="row"><span>AANKOMST:</span> <span class="'+(a5&&a5.ok?'success':'fail')+'">'+(a5&&a5.ok?'Geslaagd':'Mislukt')+'</span></div><div class="row"><span>Status:</span> <span class="'+(t5.status==='COMPLETED'?'success':'fail')+'">'+(t5.status==='COMPLETED'?'Geslaagd':'Niet voltooid')+'</span></div><h2>Acceptatietest '+(done.length===5&&failed===0?'Geslaagd':'Nog niet voltooid')+'</h2><p>Alle '+testMsgs.length+' berichten ('+done.length+' VERTREK + '+done.length+' AANKOMST) zijn gecontroleerd.</p><p>Dit rapport kan worden ingediend bij de gemeente voor goedkeuring.</p><p><em>Opmerking: Dit rapport is automatisch gegenereerd door het Golden Taxi Management Systeem.</em></p><div class="footer">Pagina 3 van 3<br>Gegenereerd op: '+new Date().toLocaleDateString()+'</div>';
- $('acceptanceBox').innerHTML=page1+page2+page3;
- showTab('acceptance');
+var c = companies[0];
+
+if(!c){
+acceptanceBox.innerHTML = '<div class="card"><b>أضف شركة أولاً.</b></div>';
+showTab('acceptance');
+return;
 }
-function printAcceptance(){if(!$('acceptanceBox').innerHTML)buildAcceptance();var p=$('printArea');document.body.classList.remove('invoicePrint');p.className='';p.innerHTML=$('acceptanceBox').innerHTML;window.print()}
-function exportCSV(){var rows=[['Trip','Environment','Status','Plate','Driver','Passenger','Distance','Price','Start','End']];trips.forEach(function(t){rows.push([t.tripNumber,t.environment||'test',t.status,t.plate,t.driverCard,t.passenger||'',t.distanceKm||'',t.price||'',t.startedAt||'',t.endedAt||''])});var csv=rows.map(function(r){return r.join(',')}).join('\n');var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='golden-report.csv';a.click()}
-function buildReport(){var done=trips.filter(function(t){return t.status==='COMPLETED'}),km=0,total=0;done.forEach(function(t){km+=Number(t.distanceKm||0);total+=Number(t.price||0)});var rows=trips.map(function(t){var inv=invoices.find(function(x){return x.tripId===t.id});var btn=inv?' <button onclick=\'printInvoice('+JSON.stringify(JSON.stringify(inv))+')\'>فاتورة</button>':(t.status==='COMPLETED'?' <button onclick=\'makeInvoice('+JSON.stringify(JSON.stringify(t))+')\'>إنشاء فاتورة</button>':'');return '<tr><td>'+esc(t.tripNumber)+'</td><td>'+esc(t.environment||'test')+'</td><td>'+esc(t.status)+'</td><td>'+esc(t.plate)+'</td><td>'+esc(t.driverCard)+'</td><td>'+esc(t.distanceKm||'-')+'</td><td>'+esc(t.price||'-')+'</td><td>'+duration(t)+'</td><td>'+btn+'</td></tr>'}).join('');$('reportBox').innerHTML='<table><tr><th>الرحلة</th><th>البيئة</th><th>الحالة</th><th>اللوحة</th><th>السائق</th><th>كم</th><th>يورو</th><th>المدة</th><th>فاتورة</th></tr>'+rows+'</table><p><b>مكتملة:</b> '+done.length+' / '+trips.length+'<br><b>إجمالي كم:</b> '+km.toFixed(3)+'<br><b>إجمالي يورو:</b> '+total.toFixed(2)+'<br><b>BTW 6%:</b> '+(total*0.06).toFixed(2)+'</p>'}
+
+if(!trips.length){
+acceptanceBox.innerHTML = '<div class="card"><b>لا توجد رحلات.</b><br>أرسل 5 رحلات TEST.</div>';
+showTab('acceptance');
+return;
+}
+
+var testTrips = trips.filter(function(t){return t.environment === 'test'});
+var done = testTrips.filter(function(t){return t.status === 'COMPLETED'});
+var testMsgs = messages.filter(function(m){return m.environment === 'test'});
+var okMsgs = testMsgs.filter(function(m){return m.ok});
+var failed = testMsgs.length - okMsgs.length;
+
+var driver = drivers.find(function(d){return d.card === testTrips[0].driverCard});
+var vehicle = vehicles.find(function(v){return v.plate === testTrips[0].plate});
+
+var page1 =
+'<div style="display:flex;justify-content:space-between;border-bottom:2px solid #ddd;padding-bottom:10px;margin-bottom:20px">' +
+'<div style="font-weight:bold">Golden</div>' +
+'<h1>Chiron Acceptatietest Rapport</h1>' +
+'</div>' +
+'<div class="row">Brussels Gewest - Vlaanderen MOW</div>' +
+'<h2>Bedrijfsinformatie</h2>' +
+'<div class="row"><span>Bedrijfsnaam:</span> ' + esc(c.name) + '</div>' +
+'<div class="row"><span>KBO-nummer:</span> ' + esc(c.kbo) + '</div>' +
+'<div class="row"><span>BTW-nummer:</span> ' + esc(c.btw || '-') + '</div>' +
+'<div class="row"><span>Adres:</span> ' + esc(c.address || '-') + '</div>' +
+'<div class="row"><span>E-mail:</span> ' + esc(c.email || '-') + '</div>' +
+'<div class="row"><span>Telefoon:</span> ' + esc(c.phone || '-') + '</div>' +
+'<h2>Chauffeursinformatie</h2>' +
+'<div class="row"><span>Naam:</span> ' + esc(driver ? driver.name : '-') + '</div>' +
+'<div class="row"><span>Capaciteitsbewijs:</span> ' + esc(driver ? driver.card : '-') + '</div>' +
+'<div class="row"><span>Telefoon:</span> ' + esc(driver ? driver.phone : '-') + '</div>' +
+'<h2>Voertuiginformatie</h2>' +
+'<div class="row"><span>Merk:</span> ' + esc(vehicle ? vehicle.brand : '-') + '</div>' +
+'<div class="row"><span>Model:</span> ' + esc(vehicle ? vehicle.model : '-') + '</div>' +
+'<div class="row"><span>Nummerplaat:</span> ' + esc(vehicle ? vehicle.plate : '-') + '</div>' +
+'<h2>Testinformatie</h2>' +
+'<div class="row"><span>Testdatum:</span> ' + new Date().toLocaleString() + '</div>' +
+'<div class="row"><span>Testomgeving:</span> TEST - Acceptatie</div>' +
+'<h2>Testresultaten Samenvatting</h2>' +
+'<div class="card2"><div>Totaal Berichten</div><div class="number">' + testMsgs.length + '</div></div>' +
+'<h2>Gedetailleerde Testresultaten</h2>' +
+'<div class="card2"><div>Geslaagd</div><div class="number" style="color:green">' + okMsgs.length + '</div></div>' +
+'<div class="card2"><div>Mislukt</div><div class="number" style="color:red">' + failed + '</div></div>' +
+'<div class="footer">Pagina 1 van 3<br>Gegenereerd op ' + new Date().toLocaleDateString() + '</div>' +
+'<div class="page-break"></div>';
+
+var page2 = '';
+
+testTrips.slice(0,4).forEach(function(t,i){
+var v = messages.find(function(m){return m.tripId === t.id && m.status === 'vertrek'});
+var a = messages.find(function(m){return m.tripId === t.id && m.status === 'aankomst'});
+
+page2 +=
+'<h2>Rit ' + (i + 1) + '</h2>' +
+'<div class="row"><span>Ritnummer:</span> ' + esc(t.tripNumber) + '</div>' +
+'<div class="row"><span>Vertrektijd:</span> ' + (t.startedAt ? new Date(t.startedAt).toLocaleString() : '-') + '</div>' +
+'<div class="row"><span>Aankomsttijd:</span> ' + (t.endedAt ? new Date(t.endedAt).toLocaleString() : '-') + '</div>' +
+'<div class="row"><span>Coordinaten vertrek:</span> ' + esc(t.startLat) + ', ' + esc(t.startLng) + '</div>' +
+'<div class="row"><span>Coordinaten aankomst:</span> ' + esc(t.endLat || '-') + ', ' + esc(t.endLng || '-') + '</div>' +
+'<div class="row"><span>VERTREK:</span> <span class="' + (v && v.ok ? 'success' : 'fail') + '">' + (v && v.ok ? 'Geslaagd' : 'Mislukt') + '</span></div>' +
+'<div class="row"><span>AANKOMST:</span> <span class="' + (a && a.ok ? 'success' : 'fail') + '">' + (a && a.ok ? 'Geslaagd' : 'Mislukt') + '</span></div>' +
+'<div class="row"><span>Status:</span> <span class="' + (t.status === 'COMPLETED' ? 'success' : 'fail') + '">' + (t.status === 'COMPLETED' ? 'Geslaagd' : 'Niet voltooid') + '</span></div>';
+});
+
+page2 +=
+'<div class="footer">Pagina 2 van 3<br>Gegenereerd op ' + new Date().toLocaleDateString() + '</div>' +
+'<div class="page-break"></div>';
+
+var t5 = testTrips[4];
+var v5 = messages.find(function(m){return m.tripId === t5.id && m.status === 'vertrek'});
+var a5 = messages.find(function(m){return m.tripId === t5.id && m.status === 'aankomst'});
+
+var page3 =
+'<h2>Rit 5</h2>' +
+'<div class="row"><span>Ritnummer:</span> ' + esc(t5 ? t5.tripNumber : '-') + '</div>' +
+'<div class="row"><span>Vertrektijd:</span> ' + (t5 && t5.startedAt ? new Date(t5.startedAt).toLocaleString() : '-') + '</div>' +
+'<div class="row"><span>Aankomsttijd:</span> ' + (t5 && t5.endedAt ? new Date(t5.endedAt).toLocaleString() : '-') + '</div>' +
+'<div class="row"><span>Coordinaten vertrek:</span> ' + esc(t5 ? t5.startLat : '-') + ', ' + esc(t5 ? t5.startLng : '-') + '</div>' +
+'<div class="row"><span>Coordinaten aankomst:</span> ' + esc(t5 ? t5.endLat : '-') + ', ' + esc(t5 ? t5.endLng : '-') + '</div>' +
+'<div class="row"><span>VERTREK:</span> <span class="' + (v5 && v5.ok ? 'success' : 'fail') + '">' + (v5 && v5.ok ? 'Geslaagd' : 'Mislukt') + '</span></div>' +
+'<div class="row"><span>AANKOMST:</span> <span class="' + (a5 && a5.ok ? 'success' : 'fail') + '">' + (a5 && a5.ok ? 'Geslaagd' : 'Mislukt') + '</span></div>' +
+'<h2>Acceptatietest: ' + (done.length === 5 && failed === 0 ? 'Geslaagd' : 'Nog niet voltooid') + '</h2>' +
+'<p>Alle ' + testMsgs.length + ' berichten zijn gecontroleerd.</p>' +
+'<p>Dit rapport kan worden ingediend bij de gemeente voor goedkeuring.</p>' +
+'<em>Opmerking: Dit rapport is automatisch gegenereerd door het Golden Taxi Management Systeem.</em>' +
+'<div class="footer">Pagina 3 van 3<br>Gegenereerd op ' + new Date().toLocaleDateString() + '</div>';
+
+acceptanceBox.innerHTML = page1 + page2 + page3;
+showTab('acceptance');
+}
+
+function printAcceptance(){
+if(!acceptanceBox.innerHTML) buildAcceptance();
+var p = printArea;
+document.body.classList.remove('invoicePrint');
+p.className = '';
+p.innerHTML = acceptanceBox.innerHTML;
+window.print();
+}
+
+function exportCSV(){
+var rows = [['Trip','Environment','Status','Plate','Driver','Passenger','Distance','Price','Start','End']];
+
+trips.forEach(function(t){
+rows.push([
+t.tripNumber,
+t.environment,
+t.status,
+t.plate,
+t.driverCard,
+t.passenger,
+t.distanceKm,
+t.price,
+t.startedAt,
+t.endedAt
+]);
+});
+
+var csv = rows.map(function(r){return r.join(',')}).join('\n');
+var a = document.createElement('a');
+a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+a.download = 'golden-report.csv';
+a.click();
+}
+
+function buildReport(){
+var done = trips.filter(function(t){return t.status === 'COMPLETED'});
+var km = 0, total = 0;
+
+done.forEach(function(t){
+km += Number(t.distanceKm || 0);
+total += Number(t.price || 0);
+});
+
+var rows = trips.map(function(t){
+var inv = invoices.find(function(x){return x.tripId === t.id});
+var btn = inv
+? '<button onclick="printInvoiceById(\'' + inv.id + '\')">فاتورة</button>'
+: (t.status === 'COMPLETED'
+? '<button onclick="makeInvoiceById(\'' + t.id + '\')">إنشاء فاتورة</button>'
+: '');
+
+return '<tr>' +
+'<td>' + esc(t.tripNumber) + '</td>' +
+'<td>' + esc(t.environment) + '</td>' +
+'<td>' + esc(t.status) + '</td>' +
+'<td>' + esc(t.plate) + '</td>' +
+'<td>' + esc(t.driverCard) + '</td>' +
+'<td>' + esc(t.distanceKm || '-') + '</td>' +
+'<td>' + esc(t.price || '-') + '</td>' +
+'<td>' + duration(t) + '</td>' +
+'<td>' + btn + '</td>' +
+'</tr>';
+}).join('');
+
+reportBox.innerHTML =
+'<table><tr><th>الرحلة</th><th>البيئة</th><th>الحالة</th><th>اللوحة</th><th>السائق</th><th>كم</th><th>السعر</th><th>المدة</th><th></th></tr>' +
+rows + '</table>' +
+'<p><b>الرحلات المكتملة:</b> ' + done.length + ' / ' + trips.length + '<br>' +
+'<b>المسافة:</b> ' + km.toFixed(3) + ' كم<br>' +
+'<b>الإجمالي:</b> ' + total.toFixed(2) + ' EUR<br>' +
+'<b>BTW 6%:</b> ' + (total * 0.06).toFixed(2) + ' EUR</p>';
+}
+
+function printInvoiceById(invoiceId){
+var i = invoices.find(function(x){return x.id === invoiceId});
+if(i) printInvoice(i);
+}
+
+function makeInvoiceById(tripId){
+var t = trips.find(function(x){return x.id === tripId});
+if(t) makeInvoice(t);
+}
+
 async function load(){
- companies=await api('/api/companies');trips=await api('/api/trips');drivers=await api('/api/drivers');vehicles=await api('/api/vehicles');customers=await api('/api/customers');invoices=await api('/api/invoices');messages=await api('/api/messages');
- $('companiesList').innerHTML=companies.map(function(c){return '<div class="card"><b>'+esc(c.name)+'</b><br>KBO: '+esc(c.kbo)+' | BTW: '+esc(c.btw||'-')+'<br>'+esc(c.address||'')+'<br>'+esc(c.email||'')+' | '+esc(c.phone||'')+'<br>TEST: '+(c.chiron.test.configured?'مضبوط':'ناقص')+' | Production: '+(c.chiron.production.configured?'مضبوط':'ناقص')+' <button onclick="removeItem(\'companies\',\''+c.id+'\')">حذف</button></div>'}).join('')||'لا توجد شركة';
- $('driversList').innerHTML=drivers.map(function(d){return '<div class="card">'+esc(d.name)+' — '+esc(d.card)+' — '+esc(d.phone||'')+' <button onclick="removeItem(\'drivers\',\''+d.id+'\')">حذف</button></div>'}).join('')||'لا يوجد سائقون';
- $('vehiclesList').innerHTML=vehicles.map(function(v){return '<div class="card">'+esc(v.brand||'')+' '+esc(v.model||'')+' — '+esc(v.plate)+' <button onclick="removeItem(\'vehicles\',\''+v.id+'\')">حذف</button></div>'}).join('')||'لا توجد مركبات';
- $('customersList').innerHTML=customers.map(function(c){return '<div class="card">'+esc(c.name)+' — '+esc(c.phone||'')+' <button onclick="removeItem(\'customers\',\''+c.id+'\')">حذف</button></div>'}).join('')||'لا يوجد زبائن';
- $('tripCompany').innerHTML=companies.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
- $('testCompany').innerHTML=companies.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
- $('prodCompany').innerHTML=companies.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join('');
- $('tripsList').innerHTML=trips.map(function(t){var b='';if(t.status==='BOOKED')b='<button onclick="startTrip(\''+t.id+'\')">START / vertrek</button>';if(t.status==='STARTED')b='<button onclick="stopTrip(\''+t.id+'\')">STOP / aankomst</button>';return '<div class="card"><b>'+esc(t.tripNumber)+'</b> — '+esc(t.environment||'test')+' — '+esc(t.status)+'<br>'+esc(t.plate)+' / '+esc(t.driverCard)+'<br>'+b+'</div>'}).join('')||'لا توجد رحلات';
- $('invoicesList').innerHTML=invoices.map(function(i){return '<div class="card"><b>'+esc(i.tripNumber)+'</b> — € '+esc(i.price)+' — '+esc(i.status)+' <button onclick=\'printInvoice('+JSON.stringify(JSON.stringify(i))+')\'>طباعة 80mm</button> '+(i.status==='UNPAID'?'<button onclick="markPaid(\''+i.id+'\')">تحديد كمدفوعة</button>':'')+'</div>'}).join('')||'لا توجد فواتير';
- buildReport();
- $('messagesList').innerHTML=messages.slice().reverse().map(function(m){return '<pre class="'+(m.ok?'ok':'bad')+'">'+esc(m.status)+' | '+esc(m.environment)+' | '+esc(m.at)+'\n'+esc(JSON.stringify(m.response))+'</pre>'}).join('')||'لا توجد رسائل';
+companies = await api('/api/companies');
+trips = await api('/api/trips');
+drivers = await api('/api/drivers');
+vehicles = await api('/api/vehicles');
+customers = await api('/api/customers');
+invoices = await api('/api/invoices');
+messages = await api('/api/messages');
+
+companiesList.innerHTML = companies.map(function(c){
+return '<div class="card"><b>' + esc(c.name) + '</b><br>' +
+'KBO: ' + esc(c.kbo) + ' | BTW: ' + esc(c.btw || '-') + '<br>' +
+esc(c.address || '') + '<br>' +
+esc(c.email || '') + ' ' + esc(c.phone || '') + '<br>' +
+'TEST: ' + (c.chiron && c.chiron.test && c.chiron.test.configured ? 'مضبوط' : 'غير مضبوط') + ' | ' +
+'Production: ' + (c.chiron && c.chiron.production && c.chiron.production.configured ? 'مضبوط' : 'غير مضبوط') + '<br>' +
+'<button onclick="removeItem(\'companies\',\'' + c.id + '\')">حذف</button></div>';
+}).join('');
+
+driversList.innerHTML = drivers.map(function(d){
+return '<div class="card">' + esc(d.name) + ' - ' + esc(d.card) + ' - ' + esc(d.phone || '') +
+' <button onclick="removeItem(\'drivers\',\'' + d.id + '\')">حذف</button></div>';
+}).join('');
+
+vehiclesList.innerHTML = vehicles.map(function(v){
+return '<div class="card">' + esc(v.brand) + ' ' + esc(v.model) + ' - ' + esc(v.plate) +
+' <button onclick="removeItem(\'vehicles\',\'' + v.id + '\')">حذف</button></div>';
+}).join('');
+
+customersList.innerHTML = customers.map(function(c){
+return '<div class="card">' + esc(c.name) + ' - ' + esc(c.phone || '') +
+' <button onclick="removeItem(\'customers\',\'' + c.id + '\')">حذف</button></div>';
+}).join('');
+
+tripCompany.innerHTML = companies.map(function(c){
+return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
+}).join('');
+
+testCompany.innerHTML = companies.map(function(c){
+return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
+}).join('');
+
+prodCompany.innerHTML = companies.map(function(c){
+return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
+}).join('');
+
+tripsList.innerHTML = trips.map(function(t){
+var b = '';
+
+if(t.status === 'BOOKED'){
+b = '<button onclick="startTrip(\'' + t.id + '\')">START vertrek</button>';
 }
+
+if(t.status === 'STARTED'){
+b = '<button onclick="stopTrip(\'' + t.id + '\')">STOP aankomst</button>';
+}
+
+return '<div class="card"><b>' + esc(t.tripNumber) + '</b> - ' + esc(t.environment) + ' - ' + esc(t.status) + '<br>' +
+esc(t.plate) + ' | ' + esc(t.driverCard) + '<br>' +
+'GPS البداية: ' + esc(t.startLat) + ', ' + esc(t.startLng) + '<br>' +
+(t.endLat ? 'GPS الوصول: ' + esc(t.endLat) + ', ' + esc(t.endLng) + '<br>' : '') +
+b + '</div>';
+}).join('');
+
+invoicesList.innerHTML = invoices.map(function(i){
+return '<div class="card"><b>' + esc(i.tripNumber) + '</b> - ' + esc(i.price) + ' EUR - ' + esc(i.status) +
+' <button onclick="printInvoiceById(\'' + i.id + '\')">طباعة 80mm</button>' +
+(i.status === 'UNPAID' ? ' <button onclick="markPaid(\'' + i.id + '\')">تم الدفع</button>' : '') +
+'</div>';
+}).join('');
+
+buildReport();
+
+messagesList.innerHTML = messages.slice().reverse().map(function(m){
+return '<pre class="' + (m.ok ? 'ok' : 'bad') + '">' +
+esc(m.status) + ' | ' + esc(m.environment) + ' | ' + esc(m.date) + '\n' +
+esc(JSON.stringify(m.response)) + '</pre>';
+}).join('');
+}
+
 show();
 </script>
+
 </body>
 </html>
