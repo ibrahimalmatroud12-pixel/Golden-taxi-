@@ -7,10 +7,14 @@
 <style>
 body{font-family:Arial;background:#f5f6f8;margin:0;color:#1d2430}
 header{padding:14px;background:#1e2530;color:#d8b36a;display:flex;justify-content:space-between;align-items:center}
-main{max-width:1000px;margin:14px auto;padding:0 12px}
+main{max-width:1100px;margin:14px auto;padding:0 12px}
 .card{background:#fff;padding:14px;border-radius:10px;margin:10px 0}
 input,select,button{width:100%;padding:10px;margin:4px 0;border:1px solid #ccc;border-radius:6px;box-sizing:border-box}
 button{background:#d8b36a;border:0;font-weight:bold;cursor:pointer}
+button.secondary{background:#eef0f3;color:#333}
+button.danger{background:#dc3545;color:#fff}
+button.success{background:#28a745;color:#fff}
+button.info{background:#17a2b8;color:#fff}
 .small{font-size:12px;color:#667}
 .ok{color:green}.bad{color:#b00}
 pre{white-space:pre-wrap;background:#f4f4f4;padding:8px;border-radius:6px;font-size:11px}
@@ -20,6 +24,9 @@ th,td{border:1px solid #ddd;padding:5px;text-align:center}
 th{background:#f0f0f0}
 .nav{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
 .nav button{width:auto;padding:8px 14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}
+.stat{background:#fff;padding:12px;border-radius:10px;text-align:center}
+.stat b{display:block;font-size:20px}
 #printArea{background:#fff;color:#333;direction:ltr;text-align:left;font-family:Arial;font-size:14px;line-height:1.6}
 #printArea h1{color:#d9534f;font-size:20px;margin:0}
 #printArea h2{font-size:16px;color:#2c3e50;border-bottom:1px solid #eee;padding-bottom:5px;margin-top:20px}
@@ -61,6 +68,7 @@ body.invoicePrint #printArea{width:74mm;page-size:auto;margin:10mm}
 <div id="app" class="hidden">
 
 <div class="nav">
+<button onclick="showTab('dashboard')">الرئيسية</button>
 <button onclick="showTab('companies')">الشركات</button>
 <button onclick="showTab('testcreds')">TEST</button>
 <button onclick="showTab('prodcreds')">Production</button>
@@ -74,7 +82,20 @@ body.invoicePrint #printArea{width:74mm;page-size:auto;margin:10mm}
 <button onclick="showTab('messages')">رسائل Chiron</button>
 </div>
 
-<div id="tab-companies" class="card">
+<div id="tab-dashboard" class="card">
+<h2>الرئيسية</h2>
+<div class="stats">
+<div class="stat"><span>إجمالي الرحلات</span><b id="statTrips">0</b></div>
+<div class="stat"><span>رحلات مكتملة</span><b id="statDone">0</b></div>
+<div class="stat"><span>الإيرادات</span><b id="statRevenue">0.00 EUR</b></div>
+<div class="stat"><span>BTW 6%</span><b id="statVat">0.00 EUR</b></div>
+<div class="stat"><span>رسائل ناجحة</span><b id="statOk">0</b></div>
+<div class="stat"><span>رسائل فاشلة</span><b id="statFail">0</b></div>
+</div>
+<p class="small">استخدم تبويب الرحلات لإنشاء رحلة، إرسال START، ثم STOP إلى Chiron.</p>
+</div>
+
+<div id="tab-companies" class="card hidden">
 <h2>الشركات</h2>
 <input id="cname" placeholder="اسم الشركة">
 <input id="ckbo" placeholder="KBO">
@@ -88,7 +109,7 @@ body.invoicePrint #printArea{width:74mm;page-size:auto;margin:10mm}
 
 <div id="tab-testcreds" class="card hidden">
 <h2>بيانات Chiron TEST</h2>
-<p class="small">اختبر الاتصال عبر hello قبل إرسال رحلات TEST.</p>
+<p class="small">أدخل بيانات TEST ثم اضغط اختبار hello قبل إرسال الرحلات.</p>
 <select id="testCompany"></select>
 <input id="testClientId" placeholder="TEST Client ID">
 <input id="testClientSecret" type="password" placeholder="TEST Client Secret">
@@ -118,8 +139,8 @@ body.invoicePrint #printArea{width:74mm;page-size:auto;margin:10mm}
 
 <div id="tab-vehicles" class="card hidden">
 <h2>السيارات</h2>
-<input id="vbrand" placeholder="الماركة مثال: TESLA">
-<input id="vmodel" placeholder="الموديل مثال: TESLA MODEL Y">
+<input id="vbrand" placeholder="الماركة">
+<input id="vmodel" placeholder="الموديل">
 <input id="vplate" placeholder="رقم اللوحة">
 <button onclick="addItem('vehicles',{brand:vbrand.value,model:vmodel.value,plate:vplate.value})">إضافة</button>
 <div id="vehiclesList"></div>
@@ -151,27 +172,24 @@ body.invoicePrint #printArea{width:74mm;page-size:auto;margin:10mm}
 
 <div class="card">
 <h3>نقطة البداية</h3>
-
 <input id="tripStartAddress" placeholder="عنوان البداية (اختياري)">
 <button onclick="geocodeAddress('tripStartAddress','tripStartLat','tripStartLng')">
 تحديد الإحداثيات من العنوان
 </button>
-
 <input id="tripStartLat" placeholder="Start latitude">
 <input id="tripStartLng" placeholder="Start longitude">
-
-<button onclick="useMyLocation()">
-استخدام موقعي الحالي كنقطة بداية
-</button>
+<button onclick="useMyLocation()">استخدام موقعي الحالي كنقطة بداية</button>
 </div>
 
 <div class="card">
 <h3>نقطة الوصول</h3>
 <input id="tripEndAddress" placeholder="عنوان الوصول (اختياري)">
-<p class="small">عند الضغط على STOP aankomst سيتم تحويل هذا العنوان إلى إحداثيات تلقائيًا. إذا تركته فارغًا ستدخل الإحداثيات يدويًا.</p>
+<p class="small">عند الضغط على STOP aankomst سيتم تحويل هذا العنوان تلقائيًا إلى إحداثيات. إذا تركته فارغًا ستدخل الإحداثيات يدويًا.</p>
 </div>
 
-<button onclick="createTrip()">إنشاء رحلة</button>
+<button class="success" onclick="createTrip()">إنشاء رحلة</button>
+
+<input id="tripSearch" placeholder="بحث برقم الرحلة أو اللوحة أو السائق" oninput="renderTrips()">
 
 <div id="tripsList"></div>
 </div>
@@ -225,7 +243,7 @@ return d;
 }
 
 function showTab(t){
-['companies','testcreds','prodcreds','drivers','vehicles','customers','trips','invoices','report','acceptance','messages'].forEach(function(x){
+['dashboard','companies','testcreds','prodcreds','drivers','vehicles','customers','trips','invoices','report','acceptance','messages'].forEach(function(x){
 id('tab-' + x).classList.toggle('hidden', x !== t);
 });
 }
@@ -238,7 +256,7 @@ return;
 }
 id('login').classList.add('hidden');
 id('app').classList.remove('hidden');
-showTab('companies');
+showTab('dashboard');
 load();
 }
 
@@ -304,11 +322,7 @@ return;
 
 var d = await api('/api/companies/' + companyId + '/chiron',{
 method:'PUT',
-body:JSON.stringify({
-environment:env,
-clientId:clientId,
-secret:secret
-})
+body:JSON.stringify({environment:env,clientId:clientId,secret:secret})
 });
 
 if(d.error){
@@ -348,11 +362,7 @@ return;
 
 try{
 var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
-
-var response = await fetch(url,{
-headers:{'Accept-Language':'nl'}
-});
-
+var response = await fetch(url,{headers:{'Accept-Language':'nl'}});
 var data = await response.json();
 
 if(!data || data.length === 0){
@@ -362,7 +372,6 @@ return;
 
 id(latId).value = parseFloat(data[0].lat).toFixed(6);
 id(lngId).value = parseFloat(data[0].lon).toFixed(6);
-
 alert('تم تحديد الإحداثيات من العنوان');
 
 }catch(err){
@@ -792,53 +801,13 @@ var t = trips.find(function(x){return x.id === tripId});
 if(t) makeInvoice(t);
 }
 
-async function load(){
-companies = await api('/api/companies');
-trips = await api('/api/trips');
-drivers = await api('/api/drivers');
-vehicles = await api('/api/vehicles');
-customers = await api('/api/customers');
-invoices = await api('/api/invoices');
-messages = await api('/api/messages');
+function renderTrips(){
+var q = tripSearch.value.trim().toLowerCase();
 
-companiesList.innerHTML = companies.map(function(c){
-return '<div class="card"><b>' + esc(c.name) + '</b><br>' +
-'KBO: ' + esc(c.kbo) + ' | BTW: ' + esc(c.btw || '-') + '<br>' +
-esc(c.address || '') + '<br>' +
-esc(c.email || '') + ' ' + esc(c.phone || '') + '<br>' +
-'TEST: ' + (c.chiron && c.chiron.test && c.chiron.test.configured ? 'مضبوط' : 'غير مضبوط') + ' | ' +
-'Production: ' + (c.chiron && c.chiron.production && c.chiron.production.configured ? 'مضبوط' : 'غير مضبوط') + '<br>' +
-'<button onclick="removeItem(\'companies\',\'' + c.id + '\')">حذف</button></div>';
-}).join('');
-
-driversList.innerHTML = drivers.map(function(d){
-return '<div class="card">' + esc(d.name) + ' - ' + esc(d.card) + ' - ' + esc(d.phone || '') +
-' <button onclick="removeItem(\'drivers\',\'' + d.id + '\')">حذف</button></div>';
-}).join('');
-
-vehiclesList.innerHTML = vehicles.map(function(v){
-return '<div class="card">' + esc(v.brand) + ' ' + esc(v.model) + ' - ' + esc(v.plate) +
-' <button onclick="removeItem(\'vehicles\',\'' + v.id + '\')">حذف</button></div>';
-}).join('');
-
-customersList.innerHTML = customers.map(function(c){
-return '<div class="card">' + esc(c.name) + ' - ' + esc(c.phone || '') +
-' <button onclick="removeItem(\'customers\',\'' + c.id + '\')">حذف</button></div>';
-}).join('');
-
-tripCompany.innerHTML = companies.map(function(c){
-return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
-}).join('');
-
-testCompany.innerHTML = companies.map(function(c){
-return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
-}).join('');
-
-prodCompany.innerHTML = companies.map(function(c){
-return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
-}).join('');
-
-tripsList.innerHTML = trips.map(function(t){
+tripsList.innerHTML = trips.filter(function(t){
+if(!q) return true;
+return (t.tripNumber + ' ' + t.plate + ' ' + t.driverCard + ' ' + t.passenger).toLowerCase().includes(q);
+}).map(function(t){
 var b = '';
 
 if(t.status === 'BOOKED'){
@@ -855,15 +824,73 @@ esc(t.plate) + ' | ' + esc(t.driverCard) + '<br>' +
 (t.endLat ? 'GPS الوصول: ' + esc(t.endLat) + ', ' + esc(t.endLng) + '<br>' : '') +
 b + '</div>';
 }).join('');
+}
+
+async function load(){
+companies = await api('/api/companies');
+trips = await api('/api/trips');
+drivers = await api('/api/drivers');
+vehicles = await api('/api/vehicles');
+customers = await api('/api/customers');
+invoices = await api('/api/invoices');
+messages = await api('/api/messages');
+
+companiesList.innerHTML = companies.map(function(c){
+return '<div class="card"><b>' + esc(c.name) + '</b><br>' +
+'KBO: ' + esc(c.kbo) + ' | BTW: ' + esc(c.btw || '-') + '<br>' +
+esc(c.address || '') + '<br>' +
+esc(c.email || '') + ' ' + esc(c.phone || '') + '<br>' +
+'TEST: ' + (c.chiron && c.chiron.test && c.chiron.test.configured ? 'مضبوط' : 'غير مضبوط') + ' | ' +
+'Production: ' + (c.chiron && c.chiron.production && c.chiron.production.configured ? 'مضبوط' : 'غير مضبوط') + '<br>' +
+'<button class="danger" onclick="removeItem(\'companies\',\'' + c.id + '\')">حذف</button></div>';
+}).join('');
+
+driversList.innerHTML = drivers.map(function(d){
+return '<div class="card">' + esc(d.name) + ' - ' + esc(d.card) + ' - ' + esc(d.phone || '') +
+' <button class="danger" onclick="removeItem(\'drivers\',\'' + d.id + '\')">حذف</button></div>';
+}).join('');
+
+vehiclesList.innerHTML = vehicles.map(function(v){
+return '<div class="card">' + esc(v.brand) + ' ' + esc(v.model) + ' - ' + esc(v.plate) +
+' <button class="danger" onclick="removeItem(\'vehicles\',\'' + v.id + '\')">حذف</button></div>';
+}).join('');
+
+customersList.innerHTML = customers.map(function(c){
+return '<div class="card">' + esc(c.name) + ' - ' + esc(c.phone || '') +
+' <button class="danger" onclick="removeItem(\'customers\',\'' + c.id + '\')">حذف</button></div>';
+}).join('');
+
+tripCompany.innerHTML = companies.map(function(c){
+return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
+}).join('');
+
+testCompany.innerHTML = companies.map(function(c){
+return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
+}).join('');
+
+prodCompany.innerHTML = companies.map(function(c){
+return '<option value="' + c.id + '">' + esc(c.name) + '</option>';
+}).join('');
+
+renderTrips();
 
 invoicesList.innerHTML = invoices.map(function(i){
 return '<div class="card"><b>' + esc(i.tripNumber) + '</b> - ' + esc(i.price) + ' EUR - ' + esc(i.status) +
 ' <button onclick="printInvoiceById(\'' + i.id + '\')">طباعة 80mm</button>' +
-(i.status === 'UNPAID' ? ' <button onclick="markPaid(\'' + i.id + '\')">تم الدفع</button>' : '') +
+(i.status === 'UNPAID' ? ' <button class="success" onclick="markPaid(\'' + i.id + '\')">تم الدفع</button>' : '') +
 '</div>';
 }).join('');
 
 buildReport();
+
+var okMsgs = messages.filter(function(m){return m.ok}).length;
+
+statTrips.innerText = trips.length;
+statDone.innerText = trips.filter(function(t){return t.status === 'COMPLETED'}).length;
+statRevenue.innerText = trips.filter(function(t){return t.status === 'COMPLETED'}).reduce(function(s,t){return s + Number(t.price || 0)},0).toFixed(2) + ' EUR';
+statVat.innerText = (trips.filter(function(t){return t.status === 'COMPLETED'}).reduce(function(s,t){return s + Number(t.price || 0)},0) * 0.06).toFixed(2) + ' EUR';
+statOk.innerText = okMsgs;
+statFail.innerText = messages.length - okMsgs;
 
 messagesList.innerHTML = messages.slice().reverse().map(function(m){
 return '<pre class="' + (m.ok ? 'ok' : 'bad') + '">' +
